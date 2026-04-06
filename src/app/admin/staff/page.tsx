@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -25,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   Upload,
+  Download,
   Pencil,
   Trash2,
   FileSpreadsheet,
@@ -266,7 +268,15 @@ export default function AdminStaffPage() {
             직원 정보를 등록, 수정, 삭제할 수 있습니다.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="/api/staff/upload/template"
+            download
+            className={cn(buttonVariants({ variant: "outline" }), "gap-1.5")}
+          >
+            <Download className="size-4" />
+            샘플 다운로드
+          </a>
           <Button variant="outline" onClick={() => { setPreviewData(null); setUploadOpen(true); }}>
             <Upload className="size-4" />
             엑셀 업로드
@@ -519,10 +529,25 @@ export default function AdminStaffPage() {
                   }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                엑셀 파일에 <strong>이름</strong>, <strong>부서(학년)</strong>,{" "}
-                <strong>직위</strong> 열이 포함되어야 합니다.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  첫 번째 시트에 <strong>이름</strong>,{" "}
+                  <strong>부서(학년)</strong>, <strong>직위</strong> 열을 그대로
+                  두고 아래 행에만 데이터를 입력하세요. (
+                  <strong>부서</strong> 열 이름도 인식합니다.)
+                </p>
+                <a
+                  href="/api/staff/upload/template"
+                  download
+                  className={cn(
+                    buttonVariants({ variant: "link", size: "xs" }),
+                    "h-auto shrink-0 px-0 text-xs"
+                  )}
+                >
+                  <Download className="mr-1 inline size-3.5 align-text-bottom" />
+                  샘플 파일 받기
+                </a>
+              </div>
             </>
           ) : (
             <>
