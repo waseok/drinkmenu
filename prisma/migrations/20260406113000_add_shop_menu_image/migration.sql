@@ -1,0 +1,2 @@
+ALTER TABLE "shops"
+ADD COLUMN "menuImageUrl" TEXT NOT NULL DEFAULT '';

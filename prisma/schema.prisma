@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Staff {
+  id         String   @id @default(cuid())
+  name       String
+  department String
+  position   String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  orders     Order[]
+
+  @@map("staff")
+}
+
+model Shop {
+  id             String     @id @default(cuid())
+  name           String
+  address        String     @default("")
+  phone          String     @default("")
+  category       String     @default("")
+  naverPlaceId   String     @default("")
+  menuImageUrl   String     @default("") @db.Text
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  menuItems      MenuItem[]
+  sessionShops   SessionShop[]
+
+  @@map("shops")
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  shopId      String
+  name        String
+  price       Int
+  category    String   @default("")
+  isAvailable Boolean  @default(true)
+  isIce       Boolean  @default(false)
+  isHot       Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  @@map("menu_items")
+}
+
+model OrderSession {
+  id           String        @id @default(cuid())
+  title        String
+  date         DateTime
+  status       SessionStatus @default(OPEN)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  orders       Order[]
+  sessionShops SessionShop[]
+
+  @@map("order_sessions")
+}
+
+model SessionShop {
+  id        String       @id @default(cuid())
+  sessionId String
+  shopId    String
+  session   OrderSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  shop      Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, shopId])
+  @@map("session_shops")
+}
+
+model Order {
+  id         String       @id @default(cuid())
+  sessionId  String
+  staffId    String
+  menuItemId String
+  quantity   Int          @default(1)
+  options    String       @default("")
+  price      Int
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  session    OrderSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  staff      Staff        @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("orders")
+}
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+}

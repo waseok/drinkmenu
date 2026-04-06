@@ -121,10 +121,45 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+
+  ::selection {
+    @apply bg-amber-200/70 text-foreground;
   }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at top, color-mix(in oklch, var(--color-primary) 8%, transparent) 0%, transparent 28%),
+      linear-gradient(to bottom, color-mix(in oklch, var(--color-background) 96%, white) 0%, var(--color-background) 100%);
+  }
+
   html {
     @apply font-sans;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply tracking-tight;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto w-full max-w-6xl px-4 py-8 sm:px-6;
+  }
+
+  .page-hero {
+    @apply relative overflow-hidden rounded-3xl border border-white/60 bg-white/80 p-6 shadow-[0_20px_60px_-35px_rgba(15,23,42,0.35)] backdrop-blur dark:border-white/10 dark:bg-zinc-950/70;
+  }
+
+  .page-hero::after {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent;
+  }
+
+  .soft-card {
+    @apply border-0 bg-card/90 shadow-[0_14px_40px_-28px_rgba(15,23,42,0.28)] backdrop-blur;
   }
 }
