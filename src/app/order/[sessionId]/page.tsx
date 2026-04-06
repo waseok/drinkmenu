@@ -123,7 +123,63 @@ interface CartItem {
   menuItem: MenuItem;
   shopName: string;
   quantity: number;
-  options: string;
+  customNote: string;
+  gongcha?: {
+    sweetness: "0%" | "30%" | "50%" | "70%" | "100%";
+    ice: "따뜻한 음료" | "얼음 적게" | "얼음 보통" | "얼음 많게";
+    topping1: string;
+    topping2: string;
+  };
+}
+
+const GONGCHA_TOPPING_OPTIONS = [
+  { name: "", price: 0 },
+  { name: "펄", price: 600 },
+  { name: "미니펄", price: 700 },
+  { name: "화이트펄", price: 700 },
+  { name: "알로에", price: 700 },
+  { name: "코코넛", price: 700 },
+  { name: "밀크폼", price: 700 },
+  { name: "치즈폼", price: 900 },
+  { name: "펄*2", price: 1200 },
+  { name: "미니펄*2", price: 1400 },
+  { name: "화이트펄*2", price: 1400 },
+  { name: "알로에*2", price: 1400 },
+  { name: "코코넛*2", price: 1400 },
+  { name: "밀크폼*2", price: 1400 },
+  { name: "치즈폼*2", price: 1800 },
+] as const;
+
+function isGongchaShop(shopName: string) {
+  return shopName.replace(/\s+/g, "").includes("공차");
+}
+
+function getToppingPrice(name: string) {
+  return GONGCHA_TOPPING_OPTIONS.find((x) => x.name === name)?.price ?? 0;
+}
+
+function getCartExtraPrice(item: CartItem) {
+  if (!item.gongcha) return 0;
+  return (
+    getToppingPrice(item.gongcha.topping1) + getToppingPrice(item.gongcha.topping2)
+  );
+}
+
+function getCartUnitPrice(item: CartItem) {
+  return item.menuItem.price + getCartExtraPrice(item);
+}
+
+function buildCartOptionsText(item: CartItem) {
+  const chunks: string[] = [];
+  if (item.gongcha) {
+    const g = item.gongcha;
+    chunks.push(`당도 ${g.sweetness}`);
+    chunks.push(g.ice);
+    if (g.topping1) chunks.push(`토핑 ${g.topping1}`);
+    if (g.topping2) chunks.push(`추가토핑 ${g.topping2}`);
+  }
+  if (item.customNote.trim()) chunks.push(item.customNote.trim());
+  return chunks.join(" / ");
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +241,14 @@ export default function OrderPage({
   } | null>(null);
   /** 메뉴판 라이트박스 배율 100~300% (25% 단계) */
   const [lightboxZoom, setLightboxZoom] = useState(100);
+  const lightboxScrollRef = useRef<HTMLDivElement | null>(null);
+  const lightboxDragRef = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
   const cartSectionRef = useRef<HTMLDivElement | null>(null);
 
   /** 라이트박스를 열거나 다른 이미지로 바꿀 때 배율 초기화 */
@@ -332,8 +396,11 @@ export default function OrderPage({
   }, [cart.length]);
 
   const addToCart = useCallback((menuItem: MenuItem, shopName: string) => {
+    const useGongchaOption = isGongchaShop(shopName);
     setCart((prev) => {
-      const existing = prev.find((c) => c.menuItem.id === menuItem.id);
+      const existing = prev.find(
+        (c) => c.menuItem.id === menuItem.id && !useGongchaOption,
+      );
       if (existing) {
         return prev.map((c) =>
           c.cartId === existing.cartId
@@ -348,7 +415,15 @@ export default function OrderPage({
           menuItem,
           shopName,
           quantity: 1,
-          options: "",
+          customNote: "",
+          gongcha: useGongchaOption
+            ? {
+                sweetness: "100%",
+                ice: "얼음 보통",
+                topping1: "",
+                topping2: "",
+              }
+            : undefined,
         },
       ];
     });
@@ -369,9 +444,31 @@ export default function OrderPage({
 
   const updateCartOptions = useCallback((cartId: string, options: string) => {
     setCart((prev) =>
-      prev.map((c) => (c.cartId === cartId ? { ...c, options } : c)),
+      prev.map((c) => (c.cartId === cartId ? { ...c, customNote: options } : c)),
     );
   }, []);
+
+  const updateGongchaOption = useCallback(
+    (
+      cartId: string,
+      key: "sweetness" | "ice" | "topping1" | "topping2",
+      value: string,
+    ) => {
+      setCart((prev) =>
+        prev.map((c) => {
+          if (c.cartId !== cartId || !c.gongcha) return c;
+          return {
+            ...c,
+            gongcha: {
+              ...c.gongcha,
+              [key]: value,
+            } as CartItem["gongcha"],
+          };
+        }),
+      );
+    },
+    [],
+  );
 
   const removeFromCart = useCallback((cartId: string) => {
     setCart((prev) => prev.filter((c) => c.cartId !== cartId));
@@ -410,8 +507,8 @@ export default function OrderPage({
               staffDepartment: selectedStaff.department,
               menuItemId: item.menuItem.id,
               quantity: item.quantity,
-              options: item.options,
-              price: item.menuItem.price,
+              options: buildCartOptionsText(item),
+              price: getCartUnitPrice(item),
             }),
           }),
         ),
@@ -467,10 +564,7 @@ export default function OrderPage({
 
   // -- computed values ------------------------------------------------------
 
-  const cartTotal = cart.reduce(
-    (s, c) => s + c.menuItem.price * c.quantity,
-    0,
-  );
+  const cartTotal = cart.reduce((s, c) => s + getCartUnitPrice(c) * c.quantity, 0);
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
 
   const groupedStaff = staffList.reduce<Record<string, Staff[]>>(
@@ -1103,7 +1197,7 @@ export default function OrderPage({
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {c.shopName} ·{" "}
-                                {formatPrice(c.menuItem.price)}
+                                {formatPrice(getCartUnitPrice(c))}
                               </p>
                             </div>
                             <Button
@@ -1138,16 +1232,99 @@ export default function OrderPage({
                             </div>
                             <Input
                               placeholder="옵션 (예: 샷 추가, 덜 달게)"
-                              value={c.options}
+                              value={c.customNote}
                               onChange={(e) =>
                                 updateCartOptions(c.cartId, e.target.value)
                               }
                               className="h-7 flex-1 text-xs"
                             />
                             <span className="shrink-0 text-sm font-semibold">
-                              {formatPrice(c.menuItem.price * c.quantity)}
+                              {formatPrice(getCartUnitPrice(c) * c.quantity)}
                             </span>
                           </div>
+
+                          {c.gongcha && (
+                            <div className="grid gap-2 rounded-md border bg-muted/25 p-2 sm:grid-cols-2">
+                              <label className="grid gap-1 text-xs">
+                                <span className="text-muted-foreground">당도</span>
+                                <select
+                                  value={c.gongcha.sweetness}
+                                  onChange={(e) =>
+                                    updateGongchaOption(
+                                      c.cartId,
+                                      "sweetness",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="h-8 rounded-md border bg-background px-2"
+                                >
+                                  <option value="0%">0%</option>
+                                  <option value="30%">30%</option>
+                                  <option value="50%">50%</option>
+                                  <option value="70%">70%</option>
+                                  <option value="100%">100%</option>
+                                </select>
+                              </label>
+                              <label className="grid gap-1 text-xs">
+                                <span className="text-muted-foreground">얼음</span>
+                                <select
+                                  value={c.gongcha.ice}
+                                  onChange={(e) =>
+                                    updateGongchaOption(c.cartId, "ice", e.target.value)
+                                  }
+                                  className="h-8 rounded-md border bg-background px-2"
+                                >
+                                  <option value="따뜻한 음료">따뜻한 음료</option>
+                                  <option value="얼음 적게">얼음 적게</option>
+                                  <option value="얼음 보통">얼음 보통</option>
+                                  <option value="얼음 많게">얼음 많게</option>
+                                </select>
+                              </label>
+                              <label className="grid gap-1 text-xs">
+                                <span className="text-muted-foreground">토핑</span>
+                                <select
+                                  value={c.gongcha.topping1}
+                                  onChange={(e) =>
+                                    updateGongchaOption(
+                                      c.cartId,
+                                      "topping1",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="h-8 rounded-md border bg-background px-2"
+                                >
+                                  {GONGCHA_TOPPING_OPTIONS.map((t) => (
+                                    <option key={`t1-${t.name || "none"}`} value={t.name}>
+                                      {t.name ? `${t.name} (+${formatPrice(t.price)})` : "선택 안 함"}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="grid gap-1 text-xs">
+                                <span className="text-muted-foreground">추가토핑</span>
+                                <select
+                                  value={c.gongcha.topping2}
+                                  onChange={(e) =>
+                                    updateGongchaOption(
+                                      c.cartId,
+                                      "topping2",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="h-8 rounded-md border bg-background px-2"
+                                >
+                                  {GONGCHA_TOPPING_OPTIONS.map((t) => (
+                                    <option key={`t2-${t.name || "none"}`} value={t.name}>
+                                      {t.name ? `${t.name} (+${formatPrice(t.price)})` : "선택 안 함"}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <p className="text-right text-xs font-medium sm:col-span-2">
+                                옵션 추가금: {formatPrice(getCartExtraPrice(c))}
+                              </p>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -1405,7 +1582,36 @@ export default function OrderPage({
                         <ChevronLeftIcon className="size-6" />
                       </Button>
                     )}
-                    <div className="max-h-[min(78dvh,80vh)] min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain rounded-md border border-zinc-800 bg-zinc-900/40">
+                    <div
+                      ref={lightboxScrollRef}
+                      className={cn(
+                        "max-h-[min(78dvh,80vh)] min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain rounded-md border border-zinc-800 bg-zinc-900/40",
+                        lightboxZoom > 100 ? "cursor-grab active:cursor-grabbing" : "",
+                      )}
+                      onMouseDown={(e) => {
+                        if (lightboxZoom <= 100 || !lightboxScrollRef.current) return;
+                        lightboxDragRef.current = {
+                          active: true,
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          scrollLeft: lightboxScrollRef.current.scrollLeft,
+                          scrollTop: lightboxScrollRef.current.scrollTop,
+                        };
+                      }}
+                      onMouseMove={(e) => {
+                        const drag = lightboxDragRef.current;
+                        const box = lightboxScrollRef.current;
+                        if (!drag?.active || !box) return;
+                        box.scrollLeft = drag.scrollLeft - (e.clientX - drag.startX);
+                        box.scrollTop = drag.scrollTop - (e.clientY - drag.startY);
+                      }}
+                      onMouseUp={() => {
+                        if (lightboxDragRef.current) lightboxDragRef.current.active = false;
+                      }}
+                      onMouseLeave={() => {
+                        if (lightboxDragRef.current) lightboxDragRef.current.active = false;
+                      }}
+                    >
                       <div
                         className="flex items-center justify-center p-3 sm:p-4"
                         style={{
