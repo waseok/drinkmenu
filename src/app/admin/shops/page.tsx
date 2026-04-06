@@ -43,6 +43,7 @@ import {
   Pencil,
   Trash2,
   ChevronDown,
+  ChevronUp,
   Store,
   Loader2,
   Download,
@@ -56,6 +57,7 @@ interface MenuItem {
   name: string;
   price: number;
   category: string;
+  sortOrder: number;
   isAvailable: boolean;
   isIce: boolean;
   isHot: boolean;
@@ -68,7 +70,7 @@ interface Shop {
   phone: string;
   category: string;
   naverPlaceId: string;
-  menuImageUrl: string;
+  menuImageUrls: string[];
   menuItems: MenuItem[];
 }
 
@@ -89,6 +91,93 @@ interface CrawledMenuItem {
 
 const MENU_CATEGORIES = ["커피", "논커피", "티", "스무디", "에이드", "기타"] as const;
 const MAX_MENU_IMAGE_SIZE_MB = 4;
+const MAX_MENU_IMAGES = 3;
+
+/** 배너·뱃지·구분선 등 메뉴 행이 아닌 줄 */
+function shouldSkipBulkPasteLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length > 100) return true;
+  if (/^[-_=·.~\s│|]+$/.test(t)) return true;
+  return (
+    t === "섬네일" ||
+    t.startsWith("주문 ") ||
+    t.startsWith("신규") ||
+    t.startsWith("인기") ||
+    t.startsWith("대표") ||
+    /^베스트|^HOT\s|^NEW\s|^MD\s|^세트/i.test(t) ||
+    !!t.match(/^\d+%/) ||
+    t.startsWith("[") ||
+    t.startsWith("(") && t.endsWith(")") && t.length <= 6
+  );
+}
+
+/**
+ * 메뉴 설명·안내 문구로 보이는 줄 (메뉴명으로 오인하지 않음)
+ */
+function isLikelyMenuDescriptionLine(line: string): boolean {
+  const t = line.normalize("NFKC").trim();
+  if (t.length <= 1) return false;
+  if (t.length >= 50) return true;
+
+  if (
+    /(합니다|습니다|드립니다|되어\s*있습니다|가능합니다|주세요|해주세요|드세요|참고|원산지|알레르기|이미지는\s*참고|실제와\s*다를|매장별로\s*다를|판매\s*가격|영업시간|문의|주의|당부)/.test(
+      t
+    )
+  ) {
+    return true;
+  }
+
+  if (/※|⍟|★{2,}|☆{2,}|\*{3,}|•{2,}/.test(t)) return true;
+
+  if ((t.match(/,/g) ?? []).length >= 2) return true;
+  if ((t.match(/·|∙/g) ?? []).length >= 3) return true;
+
+  if (
+    t.length >= 10 &&
+    /(입니다|습니까|해요|에요|예요|죠요|거예요|네요|지만요|어요)\s*$/.test(t)
+  ) {
+    return true;
+  }
+
+  if (
+    t.length >= 14 &&
+    /(부드러운|진한|깊은|풍부한|상큼한|달콤한|고소한|시원한|따뜻한).+(와|과|와\s*함께|를\s*곁들|의\s*조화)/.test(
+      t
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    t.length >= 16 &&
+    /\s(및|또는|그리고|함께\s*즐|곁들여|올린|듯한)\s/.test(t)
+  ) {
+    return true;
+  }
+
+  if (t.length >= 20 && /[.!?…]/.test(t)) return true;
+
+  return false;
+}
+
+/** 가격만 있는 줄 (숫자 + 선택적 원) */
+function parseStandalonePriceLine(line: string): number | null {
+  const m = line.trim().match(/^([\d,]+)원?\s*$/);
+  if (!m) return null;
+  const n = parseInt(m[1].replace(/,/g, ""), 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * "메뉴명만 있는 줄" 후보 — 너무 길거나 문장형이면 제외
+ */
+function isPlausibleMenuNameOnlyLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 2 || t.length > 44) return false;
+  if (/^\d/.test(t)) return false;
+  if (t.split(/\s+/).length > 7) return false;
+  return true;
+}
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -117,7 +206,7 @@ export default function AdminShopsPage() {
     address: "",
     phone: "",
     category: "",
-    menuImageUrl: "",
+    menuImageUrls: [] as string[],
   });
 
   // Menu dialog
@@ -217,7 +306,13 @@ export default function AdminShopsPage() {
   // --- Shop CRUD ---
   const openAddShopDialog = () => {
     setEditingShop(null);
-    setShopForm({ name: "", address: "", phone: "", category: "", menuImageUrl: "" });
+    setShopForm({
+      name: "",
+      address: "",
+      phone: "",
+      category: "",
+      menuImageUrls: [],
+    });
     setShopDialogOpen(true);
   };
 
@@ -228,12 +323,14 @@ export default function AdminShopsPage() {
       address: shop.address,
       phone: shop.phone,
       category: shop.category,
-      menuImageUrl: shop.menuImageUrl,
+      menuImageUrls: Array.isArray(shop.menuImageUrls)
+        ? shop.menuImageUrls.slice(0, MAX_MENU_IMAGES)
+        : [],
     });
     setShopDialogOpen(true);
   };
 
-  const handleShopImageChange = async (
+  const handleShopMenuImageAdd = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
@@ -253,12 +350,25 @@ export default function AdminShopsPage() {
 
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      setShopForm((prev) => ({ ...prev, menuImageUrl: dataUrl }));
+      setShopForm((prev) => {
+        if (prev.menuImageUrls.length >= MAX_MENU_IMAGES) {
+          toast.error(`메뉴 사진은 최대 ${MAX_MENU_IMAGES}장까지 등록할 수 있습니다.`);
+          return prev;
+        }
+        return { ...prev, menuImageUrls: [...prev.menuImageUrls, dataUrl] };
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "이미지 처리에 실패했습니다.");
     } finally {
       event.target.value = "";
     }
+  };
+
+  const removeShopMenuImageAt = (index: number) => {
+    setShopForm((prev) => ({
+      ...prev,
+      menuImageUrls: prev.menuImageUrls.filter((_, i) => i !== index),
+    }));
   };
 
   const handleSaveShop = async () => {
@@ -393,6 +503,34 @@ export default function AdminShopsPage() {
     }
   };
 
+  /** 현재 목록 순서대로 sortOrder를 0부터 다시 저장합니다. */
+  async function persistMenuOrder(shopId: string, orderedIds: string[]) {
+    const res = await fetch(`/api/shops/${shopId}/menu`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderedIds }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "순서 저장에 실패했습니다.");
+    }
+  }
+
+  async function handleMoveMenu(shop: Shop, index: number, delta: -1 | 1) {
+    const items = [...shop.menuItems];
+    const next = index + delta;
+    if (next < 0 || next >= items.length) return;
+    const reordered = [...items];
+    [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
+    const orderedIds = reordered.map((i) => i.id);
+    try {
+      await persistMenuOrder(shop.id, orderedIds);
+      fetchShops();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "순서 변경 오류");
+    }
+  }
+
   // --- Menu Crawling ---
   const openMenuCrawlDialog = async (shop: Shop) => {
     setMenuCrawlShop(shop);
@@ -488,58 +626,80 @@ export default function AdminShopsPage() {
     setBulkText(text);
     const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
     const items: CrawledMenuItem[] = [];
+    /** 직전에 읽은 메뉴명 후보 — 반드시 다음에 오는 가격 줄과만 짝지음 (설명 줄은 건너뜀) */
+    let pendingName: string | null = null;
+
+    const attachPriceToLastOrphan = (price: number) => {
+      if (items.length === 0) return;
+      const last = items[items.length - 1];
+      if (last.price === null || last.price === undefined) {
+        last.price = price;
+      }
+    };
 
     for (const line of lines) {
-      // Skip non-menu lines
-      if (
-        line === "섬네일" ||
-        line.startsWith("주문 ") ||
-        line.startsWith("신규") ||
-        line.startsWith("인기") ||
-        line.startsWith("대표") ||
-        line.match(/^\d+%/) ||
-        line.startsWith("[") ||
-        line.length > 80
-      )
-        continue;
+      if (shouldSkipBulkPasteLine(line)) continue;
 
-      // Check if it's a price line (e.g., "3,500원" or "3500원" or "3500")
-      const priceMatch = line.match(/^[\d,]+원?$/);
-      if (priceMatch && items.length > 0 && items[items.length - 1].price === null) {
-        items[items.length - 1].price =
-          parseInt(line.replace(/[^0-9]/g, ""), 10) || null;
+      const standalonePrice = parseStandalonePriceLine(line);
+      if (standalonePrice !== null) {
+        if (pendingName) {
+          items.push({
+            name: pendingName,
+            price: standalonePrice,
+            selected: true,
+          });
+          pendingName = null;
+        } else {
+          attachPriceToLastOrphan(standalonePrice);
+        }
         continue;
       }
 
-      // Check if line has both name and price: "아메리카노 3,500원"
+      if (isLikelyMenuDescriptionLine(line)) {
+        continue;
+      }
+
       const namePrice = line.match(/^(.+?)\s+([\d,]+)원?\s*$/);
       if (namePrice) {
+        const namePart = namePrice[1].trim();
+        const priceNum =
+          parseInt(namePrice[2].replace(/,/g, ""), 10) || null;
+        if (isLikelyMenuDescriptionLine(namePart)) continue;
+        pendingName = null;
         items.push({
-          name: namePrice[1].trim(),
-          price: parseInt(namePrice[2].replace(/,/g, ""), 10) || null,
+          name: namePart,
+          price: priceNum,
           selected: true,
         });
         continue;
       }
 
-      // Check if line has price at start: "3,500원 아메리카노"
       const priceName = line.match(/^([\d,]+)원?\s+(.+)$/);
       if (priceName) {
+        const namePart = priceName[2].trim();
+        if (isLikelyMenuDescriptionLine(namePart)) continue;
+        pendingName = null;
         items.push({
-          name: priceName[2].trim(),
+          name: namePart,
           price: parseInt(priceName[1].replace(/,/g, ""), 10) || null,
           selected: true,
         });
         continue;
       }
 
-      // It's probably a menu name, price on next line
-      if (line.length >= 2 && line.length <= 50 && !line.match(/^\d/)) {
-        items.push({ name: line, price: null, selected: true });
+      if (
+        isPlausibleMenuNameOnlyLine(line) &&
+        !isLikelyMenuDescriptionLine(line)
+      ) {
+        pendingName = line;
+        continue;
+      }
+
+      if (line.length > 36) {
+        pendingName = null;
       }
     }
 
-    // Filter out items with no price
     const valid = items.filter((i) => i.price && i.price > 0);
     setBulkParsed(valid);
   };
@@ -720,16 +880,25 @@ export default function AdminShopsPage() {
                 onOpenChange={() => toggleExpanded(shop.id)}
               >
                 <CardHeader>
-                  {shop.menuImageUrl && (
-                    <div className="mb-4 overflow-hidden rounded-2xl border bg-muted/30">
-                      <Image
-                        src={shop.menuImageUrl}
-                        alt={`${shop.name} 메뉴 사진`}
-                        width={1200}
-                        height={720}
-                        unoptimized
-                        className="h-48 w-full object-cover"
-                      />
+                  {(shop.menuImageUrls ?? []).length > 0 && (
+                    <div className="mb-4 grid grid-cols-3 gap-1 overflow-hidden rounded-2xl border bg-muted/30 sm:gap-2">
+                      {(shop.menuImageUrls ?? [])
+                        .slice(0, MAX_MENU_IMAGES)
+                        .map((url, idx) => (
+                        <div
+                          key={`${shop.id}-thumb-${idx}`}
+                          className="relative aspect-[4/3] min-h-0"
+                        >
+                          <Image
+                            src={url}
+                            alt={`${shop.name} 메뉴 사진 ${idx + 1}`}
+                            fill
+                            unoptimized
+                            className="object-cover"
+                            sizes="(max-width: 640px) 33vw, 200px"
+                          />
+                        </div>
+                      ))}
                     </div>
                   )}
                   <div className="flex items-start justify-between gap-3">
@@ -805,25 +974,35 @@ export default function AdminShopsPage() {
 
                 <CollapsibleContent>
                   <CardContent className="space-y-4">
-                    {shop.menuImageUrl && (
+                    {(shop.menuImageUrls ?? []).length > 0 && (
                       <div className="overflow-hidden rounded-2xl border bg-muted/20">
                         <div className="border-b bg-background/80 px-4 py-2 text-sm font-medium">
-                          메뉴 사진
+                          메뉴 사진 ({(shop.menuImageUrls ?? []).length}장)
                         </div>
-                        <Image
-                          src={shop.menuImageUrl}
-                          alt={`${shop.name} 메뉴 사진`}
-                          width={1200}
-                          height={1600}
-                          unoptimized
-                          className="max-h-[420px] w-full object-contain bg-white"
-                        />
+                        <div className="divide-y bg-white">
+                          {(shop.menuImageUrls ?? []).map((url, idx) => (
+                            <Image
+                              key={`${shop.id}-full-${idx}`}
+                              src={url}
+                              alt={`${shop.name} 메뉴 사진 ${idx + 1}`}
+                              width={1200}
+                              height={1600}
+                              unoptimized
+                              className="max-h-[420px] w-full object-contain"
+                            />
+                          ))}
+                        </div>
                       </div>
                     )}
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold">
-                        메뉴 ({shop.menuItems.length})
-                      </h3>
+                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          메뉴 ({shop.menuItems.length})
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          순서 열의 위·아래 버튼으로 주문 화면에 보이는 메뉴 순서를 맞출 수 있습니다.
+                        </p>
+                      </div>
                       <Button
                         size="sm"
                         onClick={() => openAddMenuDialog(shop.id)}
@@ -846,6 +1025,9 @@ export default function AdminShopsPage() {
                         <Table>
                           <TableHeader>
                             <TableRow>
+                              <TableHead className="w-[88px] text-center">
+                                순서
+                              </TableHead>
                               <TableHead>메뉴명</TableHead>
                               <TableHead>가격</TableHead>
                               <TableHead>카테고리</TableHead>
@@ -855,8 +1037,40 @@ export default function AdminShopsPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {shop.menuItems.map((item) => (
+                            {shop.menuItems.map((item, menuIndex) => (
                               <TableRow key={item.id}>
+                                <TableCell className="text-center">
+                                  <div className="flex justify-center gap-0.5">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="size-7"
+                                      disabled={menuIndex === 0}
+                                      title="위로"
+                                      onClick={() =>
+                                        handleMoveMenu(shop, menuIndex, -1)
+                                      }
+                                    >
+                                      <ChevronUp className="size-4" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="size-7"
+                                      disabled={
+                                        menuIndex === shop.menuItems.length - 1
+                                      }
+                                      title="아래로"
+                                      onClick={() =>
+                                        handleMoveMenu(shop, menuIndex, 1)
+                                      }
+                                    >
+                                      <ChevronDown className="size-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
                                 <TableCell className="font-medium">
                                   {item.name}
                                 </TableCell>
@@ -973,49 +1187,64 @@ export default function AdminShopsPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="shop-menu-image">메뉴 사진</Label>
-              <label
-                htmlFor="shop-menu-image"
-                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-muted/20 px-4 py-6 text-center transition-colors hover:bg-muted/40"
-              >
-                <ImagePlus className="size-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">메뉴 사진 업로드</p>
-                  <p className="text-xs text-muted-foreground">
-                    JPG, PNG 등 이미지 파일 / 최대 {MAX_MENU_IMAGE_SIZE_MB}MB
-                  </p>
-                </div>
-              </label>
-              <Input
-                id="shop-menu-image"
-                type="file"
-                accept="image/*"
-                onChange={handleShopImageChange}
-                className="hidden"
-              />
-              {shopForm.menuImageUrl && (
-                <div className="overflow-hidden rounded-2xl border bg-muted/20">
-                  <Image
-                    src={shopForm.menuImageUrl}
-                    alt="메뉴 사진 미리보기"
-                    width={1200}
-                    height={720}
-                    unoptimized
-                    className="h-48 w-full object-cover"
-                  />
+              <Label htmlFor="shop-menu-image">메뉴 사진 (최대 {MAX_MENU_IMAGES}장)</Label>
+              <p className="text-xs text-muted-foreground">
+                주문 화면에 메뉴판 이미지로 표시됩니다. 장당 최대{" "}
+                {MAX_MENU_IMAGE_SIZE_MB}MB.
+              </p>
+              {shopForm.menuImageUrls.map((url, idx) => (
+                <div
+                  key={`preview-${idx}`}
+                  className="overflow-hidden rounded-2xl border bg-muted/20"
+                >
+                  <div className="relative h-40 w-full sm:h-48">
+                    <Image
+                      src={url}
+                      alt={`메뉴 사진 ${idx + 1}`}
+                      fill
+                      unoptimized
+                      className="object-cover"
+                      sizes="100vw"
+                    />
+                  </div>
                   <div className="flex justify-end border-t bg-background/80 p-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
-                        setShopForm((prev) => ({ ...prev, menuImageUrl: "" }))
-                      }
+                      type="button"
+                      onClick={() => removeShopMenuImageAt(idx)}
                     >
                       <X className="size-4" />
-                      사진 제거
+                      이 사진 제거
                     </Button>
                   </div>
                 </div>
+              ))}
+              {shopForm.menuImageUrls.length < MAX_MENU_IMAGES && (
+                <>
+                  <label
+                    htmlFor="shop-menu-image"
+                    className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-muted/20 px-4 py-6 text-center transition-colors hover:bg-muted/40"
+                  >
+                    <ImagePlus className="size-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        사진 추가 (
+                        {shopForm.menuImageUrls.length}/{MAX_MENU_IMAGES})
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        JPG, PNG 등 이미지 파일
+                      </p>
+                    </div>
+                  </label>
+                  <Input
+                    id="shop-menu-image"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleShopMenuImageAdd}
+                    className="hidden"
+                  />
+                </>
               )}
             </div>
           </div>
@@ -1236,8 +1465,10 @@ export default function AdminShopsPage() {
             <div>
               <Label>메뉴 텍스트 붙여넣기</Label>
               <p className="text-xs text-muted-foreground mb-2">
-                배달앱이나 메뉴판에서 복사한 텍스트를 붙여넣으세요.
-                &quot;메뉴명 가격&quot; 또는 메뉴명과 가격이 줄바꿈으로 구분된 형식 모두 지원합니다.
+                배달앱·메뉴판에서 복사한 텍스트를 붙여넣으세요.{" "}
+                <strong>메뉴명 3,500원</strong> 한 줄 형식, 또는{" "}
+                <strong>메뉴명 다음 줄에 가격</strong> 형식을 권장합니다. 메뉴
+                아래에 붙는 설명 문장은 자동으로 건너뜁니다.
               </p>
               <textarea
                 className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm"

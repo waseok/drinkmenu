@@ -65,7 +65,7 @@ interface Shop {
   id: string;
   name: string;
   phone: string;
-  menuImageUrl: string;
+  menuImageUrls: string[];
   menuItems: MenuItem[];
 }
 
@@ -769,7 +769,10 @@ export default function OrderPage({
                   const categories = groupByCategory(shop.menuItems);
                   const catEntries = Object.entries(categories);
 
-                  if (catEntries.length === 0 && !shop.menuImageUrl) {
+                  if (
+                    catEntries.length === 0 &&
+                    (!shop.menuImageUrls || shop.menuImageUrls.length === 0)
+                  ) {
                     return (
                       <p className="py-8 text-center text-sm text-muted-foreground">
                         등록된 메뉴가 없습니다.
@@ -780,13 +783,18 @@ export default function OrderPage({
                   return (
                     <ScrollArea className="max-h-[58vh] overflow-y-auto">
                       <div className="space-y-5">
-                        {shop.menuImageUrl && (
+                        {shop.menuImageUrls && shop.menuImageUrls.length > 0 && (
                           <Card className="overflow-hidden border-0 shadow-md">
                             <CardHeader className="border-b bg-background/90">
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                   <CardTitle className="text-base">
                                     {shop.name} 메뉴판
+                                    {shop.menuImageUrls.length > 1 && (
+                                      <span className="ml-1 text-xs font-normal text-muted-foreground">
+                                        ({shop.menuImageUrls.length}장)
+                                      </span>
+                                    )}
                                   </CardTitle>
                                   {shop.phone && (
                                     <p className="text-xs font-normal text-muted-foreground">
@@ -818,15 +826,18 @@ export default function OrderPage({
                                 )}
                               </div>
                             </CardHeader>
-                            <CardContent className="p-0">
-                              <Image
-                                src={shop.menuImageUrl}
-                                alt={`${shop.name} 메뉴판`}
-                                width={1200}
-                                height={1600}
-                                unoptimized
-                                className="max-h-[420px] w-full object-contain bg-white"
-                              />
+                            <CardContent className="divide-y p-0">
+                              {shop.menuImageUrls.map((url, imgIdx) => (
+                                <Image
+                                  key={`${shop.id}-menu-img-${imgIdx}`}
+                                  src={url}
+                                  alt={`${shop.name} 메뉴판 ${imgIdx + 1}`}
+                                  width={1200}
+                                  height={1600}
+                                  unoptimized
+                                  className="max-h-[420px] w-full object-contain bg-white"
+                                />
+                              ))}
                             </CardContent>
                           </Card>
                         )}
