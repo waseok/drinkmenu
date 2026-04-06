@@ -160,8 +160,8 @@ export default function OrderPage({
     async function fetchData() {
       try {
         const [sessionRes, staffRes] = await Promise.all([
-          fetch(`/api/sessions/${sessionId}`),
-          fetch("/api/staff"),
+          fetch(`/api/sessions/${sessionId}`, { cache: "no-store" }),
+          fetch("/api/staff", { cache: "no-store" }),
         ]);
 
         if (cancelled) return;
@@ -204,7 +204,9 @@ export default function OrderPage({
         return;
       }
       try {
-        const res = await fetch(`/api/orders?sessionId=${sessionId}`);
+        const res = await fetch(`/api/orders?sessionId=${sessionId}`, {
+          cache: "no-store",
+        });
         if (res.ok) {
           const all: OrderItem[] = await res.json();
           setExistingOrders(all.filter((o) => o.staffId === staffId));

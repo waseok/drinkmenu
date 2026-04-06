@@ -45,7 +45,7 @@ export default function OrderPage() {
   useEffect(() => {
     async function fetchSessions() {
       try {
-        const res = await fetch("/api/sessions");
+        const res = await fetch("/api/sessions", { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to fetch");
         const data: Session[] = await res.json();
         setSessions(data.filter((s) => s.status === "OPEN"));
