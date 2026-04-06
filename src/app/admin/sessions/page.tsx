@@ -395,37 +395,36 @@ export default function AdminSessionsPage() {
 
   function renderSessionCard(session: Session) {
     const ts = session.targetSummary;
+    const isClosed = session.status === "CLOSED";
 
-    return (
-      <Card
-        key={session.id}
-        className="soft-card overflow-hidden rounded-3xl transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_-32px_rgba(15,23,42,0.28)]"
-      >
-        <CardHeader className="pb-4">
-          <div className="flex items-start justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <CardTitle className="truncate">
-                  <Link
-                    href={`/order/${session.id}/result`}
-                    className="hover:underline"
-                  >
-                    {session.title}
-                  </Link>
-                </CardTitle>
-                <Badge
-                  variant={session.status === "OPEN" ? "default" : "secondary"}
-                >
-                  {session.status === "OPEN" ? "진행중" : "완료"}
-                </Badge>
-              </div>
-              <CardDescription className="mt-1 flex items-center gap-1">
-                <CalendarIcon className="size-3.5" />
-                {formatDateKorean(session.date)}
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
+    const titleRow = (
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <CardTitle className="truncate text-base sm:text-lg">
+          <Link
+            href={`/order/${session.id}/result`}
+            className="hover:underline"
+          >
+            {session.title}
+          </Link>
+        </CardTitle>
+        <Badge variant={session.status === "OPEN" ? "default" : "secondary"}>
+          {session.status === "OPEN" ? "진행중" : "완료"}
+        </Badge>
+      </div>
+    );
+
+    const detailBlock = (
+      <>
+        <div
+          className={
+            isClosed
+              ? "text-muted-foreground flex items-center gap-1 px-6 pt-0 pb-3 text-sm"
+              : "hidden"
+          }
+        >
+          <CalendarIcon className="size-3.5 shrink-0" />
+          {formatDateKorean(session.date)}
+        </div>
         <CardContent className="space-y-3 pt-0">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span>주문 {session._count.orders}건</span>
@@ -440,7 +439,7 @@ export default function AdminSessionsPage() {
           {ts ? (
             <div className="rounded-xl border bg-muted/30 px-3 py-2 text-sm">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="flex items-center gap-1 font-medium text-foreground">
+                <span className="text-foreground flex items-center gap-1 font-medium">
                   <UsersIcon className="size-3.5" />
                   대상 {ts.targetCount}명 · 주문 {ts.orderedCount}명
                 </span>
@@ -460,14 +459,14 @@ export default function AdminSessionsPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-auto w-full justify-between px-2 py-1.5 text-xs font-medium text-muted-foreground"
+                        className="text-muted-foreground h-auto w-full justify-between px-2 py-1.5 text-xs font-medium"
                       />
                     }
                   >
                     미주문 명단 보기
                     <ChevronDownIcon className="size-4 shrink-0 opacity-70" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-1 max-h-40 overflow-y-auto rounded-lg border bg-background p-2">
+                  <CollapsibleContent className="bg-background mt-1 max-h-40 overflow-y-auto rounded-lg border p-2">
                     <ul className="space-y-1 text-xs">
                       {ts.notOrderedStaff.map((s) => (
                         <li key={s.id} className="flex justify-between gap-2">
@@ -483,13 +482,13 @@ export default function AdminSessionsPage() {
               )}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               주문 대상을 지정하지 않았습니다. 주문 화면에서는 등록된 전체 교직원이
               보입니다.
             </p>
           )}
         </CardContent>
-        <CardFooter className="flex-wrap gap-2 border-t bg-muted/20">
+        <CardFooter className="bg-muted/20 flex-wrap gap-2 border-t">
           <Link href={`/order/${session.id}/result`}>
             <Button variant="outline" size="sm">
               <LinkIcon data-icon="inline-start" />
@@ -528,6 +527,54 @@ export default function AdminSessionsPage() {
             삭제
           </Button>
         </CardFooter>
+      </>
+    );
+
+    if (isClosed) {
+      return (
+        <Collapsible key={session.id} defaultOpen={false}>
+          <Card className="soft-card overflow-hidden rounded-3xl transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_-32px_rgba(15,23,42,0.28)]">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2">
+                {titleRow}
+                <CollapsibleTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-1"
+                    />
+                  }
+                >
+                  <span className="text-xs">상세</span>
+                  <ChevronDownIcon className="size-4 opacity-70" />
+                </CollapsibleTrigger>
+              </div>
+            </CardHeader>
+            <CollapsibleContent>{detailBlock}</CollapsibleContent>
+          </Card>
+        </Collapsible>
+      );
+    }
+
+    return (
+      <Card
+        key={session.id}
+        className="soft-card overflow-hidden rounded-3xl transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_-32px_rgba(15,23,42,0.28)]"
+      >
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              {titleRow}
+              <CardDescription className="mt-1 flex items-center gap-1">
+                <CalendarIcon className="size-3.5" />
+                {formatDateKorean(session.date)}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        {detailBlock}
       </Card>
     );
   }
