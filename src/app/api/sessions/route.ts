@@ -3,6 +3,54 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const staffLiteSelect = {
+  id: true,
+  name: true,
+  department: true,
+} as const;
+
+function mapSessionListItem(
+  s: {
+    id: string;
+    title: string;
+    date: Date;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+    _count: { orders: number };
+    sessionShops: unknown;
+    sessionTargets: {
+      staffId: string;
+      staff: { id: string; name: string; department: string };
+    }[];
+    orders: { staffId: string }[];
+  }
+) {
+  const orderedStaffIds = new Set(s.orders.map((o) => o.staffId));
+  const targets = s.sessionTargets;
+  const notOrderedStaff = targets
+    .filter((t) => !orderedStaffIds.has(t.staffId))
+    .map((t) => t.staff);
+  const orderedTargetCount = targets.filter((t) =>
+    orderedStaffIds.has(t.staffId)
+  ).length;
+
+  const { orders: _orders, ...rest } = s;
+
+  return {
+    ...rest,
+    targetSummary:
+      targets.length === 0
+        ? null
+        : {
+            targetCount: targets.length,
+            orderedCount: orderedTargetCount,
+            notOrderedCount: notOrderedStaff.length,
+            notOrderedStaff,
+          },
+  };
+}
+
 export async function GET() {
   try {
     const sessions = await prisma.orderSession.findMany({
@@ -12,10 +60,17 @@ export async function GET() {
         sessionShops: {
           include: { shop: true },
         },
+        sessionTargets: {
+          include: {
+            staff: { select: staffLiteSelect },
+          },
+        },
+        orders: { select: { staffId: true } },
       },
     });
 
-    return NextResponse.json(sessions);
+    const payload = sessions.map(mapSessionListItem);
+    return NextResponse.json(payload);
   } catch (error) {
     console.error("Failed to fetch sessions:", error);
     return NextResponse.json(
@@ -28,10 +83,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, date, shopIds } = body as {
+    const { title, date, shopIds, staffIds } = body as {
       title: string;
       date: string;
       shopIds: string[];
+      staffIds?: string[];
     };
 
     if (!title || !date || !shopIds?.length) {
@@ -41,6 +97,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const uniqueStaff =
+      Array.isArray(staffIds) && staffIds.length > 0
+        ? [...new Set(staffIds.filter((id) => typeof id === "string" && id))]
+        : [];
+
     const session = await prisma.orderSession.create({
       data: {
         title,
@@ -48,16 +109,29 @@ export async function POST(request: NextRequest) {
         sessionShops: {
           create: shopIds.map((shopId) => ({ shopId })),
         },
+        ...(uniqueStaff.length > 0
+          ? {
+              sessionTargets: {
+                create: uniqueStaff.map((staffId) => ({ staffId })),
+              },
+            }
+          : {}),
       },
       include: {
         _count: { select: { orders: true } },
         sessionShops: {
           include: { shop: true },
         },
+        sessionTargets: {
+          include: {
+            staff: { select: staffLiteSelect },
+          },
+        },
+        orders: { select: { staffId: true } },
       },
     });
 
-    return NextResponse.json(session, { status: 201 });
+    return NextResponse.json(mapSessionListItem(session), { status: 201 });
   } catch (error) {
     console.error("Failed to create session:", error);
     return NextResponse.json(
@@ -70,12 +144,13 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, title, date, status, shopIds } = body as {
+    const { id, title, date, status, shopIds, staffIds } = body as {
       id: string;
       title?: string;
       date?: string;
       status?: "OPEN" | "CLOSED";
       shopIds?: string[];
+      staffIds?: string[];
     };
 
     if (!id) {
@@ -98,19 +173,43 @@ export async function PUT(request: NextRequest) {
         });
       }
 
-      return tx.orderSession.update({
+      if (staffIds !== undefined) {
+        const uniqueStaff = [
+          ...new Set(
+            (staffIds as string[]).filter((x) => typeof x === "string" && x)
+          ),
+        ];
+        await tx.sessionTargetStaff.deleteMany({ where: { sessionId: id } });
+        if (uniqueStaff.length > 0) {
+          await tx.sessionTargetStaff.createMany({
+            data: uniqueStaff.map((staffId) => ({ sessionId: id, staffId })),
+          });
+        }
+      }
+
+      await tx.orderSession.update({
         where: { id },
         data: updateData,
+      });
+
+      return tx.orderSession.findUniqueOrThrow({
+        where: { id },
         include: {
           _count: { select: { orders: true } },
           sessionShops: {
             include: { shop: true },
           },
+          sessionTargets: {
+            include: {
+              staff: { select: staffLiteSelect },
+            },
+          },
+          orders: { select: { staffId: true } },
         },
       });
     });
 
-    return NextResponse.json(session);
+    return NextResponse.json(mapSessionListItem(session));
   } catch (error) {
     console.error("Failed to update session:", error);
     return NextResponse.json(

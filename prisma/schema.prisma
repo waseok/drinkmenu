@@ -8,15 +8,39 @@ datasource db {
 }
 
 model Staff {
-  id         String   @id @default(cuid())
-  name       String
-  department String
-  position   String   @default("")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  orders     Order[]
+  id              String               @id @default(cuid())
+  name            String
+  department      String
+  position        String               @default("")
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  orders          Order[]
+  groupMembers    StaffGroupMember[]
+  sessionTargets  SessionTargetStaff[]
 
   @@map("staff")
+}
+
+model StaffGroup {
+  id        String             @id @default(cuid())
+  name      String
+  sortOrder Int                @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  members   StaffGroupMember[]
+
+  @@map("staff_groups")
+}
+
+model StaffGroupMember {
+  id      String     @id @default(cuid())
+  groupId String
+  staffId String
+  group   StaffGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  staff   Staff      @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, staffId])
+  @@map("staff_group_members")
 }
 
 model Shop {
@@ -54,16 +78,28 @@ model MenuItem {
 }
 
 model OrderSession {
-  id           String        @id @default(cuid())
-  title        String
-  date         DateTime
-  status       SessionStatus @default(OPEN)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  orders       Order[]
-  sessionShops SessionShop[]
+  id              String               @id @default(cuid())
+  title           String
+  date            DateTime
+  status          SessionStatus        @default(OPEN)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  orders          Order[]
+  sessionShops    SessionShop[]
+  sessionTargets  SessionTargetStaff[]
 
   @@map("order_sessions")
+}
+
+model SessionTargetStaff {
+  id        String       @id @default(cuid())
+  sessionId String
+  staffId   String
+  session   OrderSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  staff     Staff        @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, staffId])
+  @@map("session_target_staff")
 }
 
 model SessionShop {

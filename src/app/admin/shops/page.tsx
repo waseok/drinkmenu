@@ -1137,13 +1137,13 @@ export default function AdminShopsPage() {
 
       {/* Shop Add/Edit Dialog */}
       <Dialog open={shopDialogOpen} onOpenChange={setShopDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(90vh,760px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="shrink-0 space-y-1 border-b px-4 pt-4 pr-12 pb-3">
             <DialogTitle>
               {editingShop ? "업체 정보 수정" : "업체 추가"}
             </DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="shop-name">업체명 *</Label>
               <Input
@@ -1248,7 +1248,7 @@ export default function AdminShopsPage() {
               )}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="!mx-0 !mb-0 shrink-0 border-t bg-background px-4 py-3">
             <Button variant="outline" onClick={() => setShopDialogOpen(false)}>
               취소
             </Button>

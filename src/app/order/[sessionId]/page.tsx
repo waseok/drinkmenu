@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { use, useState, useEffect, useCallback, useRef } from "react";
+import { use, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import {
   SearchIcon,
@@ -75,6 +75,19 @@ interface SessionShop {
   shop: Shop;
 }
 
+/** 세션에 지정된 주문 대상 (없으면 전 교직원) */
+interface SessionTargetRow {
+  staffId: string;
+  staff: Staff;
+}
+
+/** 주문 화면 이름 피커용 맞춤 그룹 (대상과 교집합만 서버에서 내려줌) */
+interface PickerGroup {
+  id: string;
+  name: string;
+  staffIds: string[];
+}
+
 interface OrderItem {
   id: string;
   sessionId: string;
@@ -94,6 +107,8 @@ interface Session {
   status: "OPEN" | "CLOSED";
   sessionShops: SessionShop[];
   orders: OrderItem[];
+  sessionTargets?: SessionTargetRow[];
+  pickerGroups?: PickerGroup[];
 }
 
 interface CartItem {
@@ -151,6 +166,10 @@ export default function OrderPage({
   const [error, setError] = useState<string | null>(null);
   const [activeShopIdx, setActiveShopIdx] = useState(0);
   const [completedOrdersOpen, setCompletedOrdersOpen] = useState(false);
+  /** 이름 선택: 부서(학년) 묶음 vs 관리자 맞춤 그룹 */
+  const [namePickerView, setNamePickerView] = useState<"dept" | "groups">(
+    "dept",
+  );
   const cartSectionRef = useRef<HTMLDivElement | null>(null);
 
   // -- data fetching --------------------------------------------------------
@@ -183,8 +202,18 @@ export default function OrderPage({
           return;
         }
 
+        // 세션에 주문 대상이 지정된 경우, 이름 목록을 그 교직원만으로 제한
+        const targetIds = new Set(
+          (sessionData.sessionTargets ?? []).map((t) => t.staffId),
+        );
+        const hasTargets = targetIds.size > 0;
+        const filteredStaff = hasTargets
+          ? staffData.filter((s) => targetIds.has(s.id))
+          : staffData;
+
         setSession(sessionData);
-        setStaffList(staffData);
+        setStaffList(filteredStaff);
+        setNamePickerView("dept");
       } catch {
         if (!cancelled) setError("데이터를 불러오는 중 오류가 발생했습니다.");
       } finally {
@@ -428,6 +457,27 @@ export default function OrderPage({
     return result;
   }, []);
 
+  /** 맞춤 그룹별로 필터·검색 적용 (세션에 pickerGroups가 있을 때만 사용) */
+  const filteredPickerGroups = useMemo(() => {
+    const groups = session?.pickerGroups;
+    if (!groups?.length) return [];
+    const q = searchQuery.toLowerCase();
+    return groups
+      .map((g) => {
+        const members = staffList.filter((s) => g.staffIds.includes(s.id));
+        const filtered = members.filter(
+          (s) =>
+            s.name.toLowerCase().includes(q) ||
+            s.department.toLowerCase().includes(q),
+        );
+        return { id: g.id, name: g.name, members: filtered };
+      })
+      .filter((g) => g.members.length > 0);
+  }, [session?.pickerGroups, staffList, searchQuery]);
+
+  const hasCustomPickerGroups =
+    (session?.pickerGroups?.length ?? 0) > 0;
+
   // -- early returns --------------------------------------------------------
 
   if (loading) {
@@ -594,7 +644,9 @@ export default function OrderPage({
         {step === 1 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              이름을 선택하거나 직접 입력해주세요.
+              {session.sessionTargets && session.sessionTargets.length > 0
+                ? "이번 세션의 주문 대상만 표시됩니다. 이름을 선택하거나 직접 입력해주세요."
+                : "이름을 선택하거나 직접 입력해주세요."}
             </p>
 
             <Card className="border-0 shadow-md">
@@ -629,22 +681,72 @@ export default function OrderPage({
               />
             </div>
 
-            {/* Staff list grouped by department */}
-            {filteredGroups.length === 0 ? (
+            {hasCustomPickerGroups && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={namePickerView === "dept" ? "default" : "outline"}
+                  onClick={() => setNamePickerView("dept")}
+                >
+                  부서별 보기
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={namePickerView === "groups" ? "default" : "outline"}
+                  onClick={() => setNamePickerView("groups")}
+                >
+                  맞춤 그룹별 보기
+                </Button>
+              </div>
+            )}
+
+            {/* Staff list: 부서별 또는 맞춤 그룹별 */}
+            {namePickerView === "dept" ? (
+              filteredGroups.length === 0 ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">
+                  검색 결과가 없습니다.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {filteredGroups.map(([dept, members]) => (
+                    <div key={dept}>
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {dept}
+                      </h3>
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {members.map((staff) => (
+                          <button
+                            key={staff.id}
+                            type="button"
+                            onClick={() => handleSelectStaff(staff)}
+                            className="rounded-lg border bg-card px-3 py-2.5 text-center text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.97]"
+                          >
+                            {staff.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : filteredPickerGroups.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">
-                검색 결과가 없습니다.
+                검색 결과가 없거나, 이 세션 대상에 속한 맞춤 그룹 인원이 없습니다.
               </p>
             ) : (
               <div className="space-y-4">
-                {filteredGroups.map(([dept, members]) => (
-                  <div key={dept}>
+                {filteredPickerGroups.map((g) => (
+                  <div key={g.id}>
                     <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {dept}
+                      {g.name}
                     </h3>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {members.map((staff) => (
+                      {g.members.map((staff) => (
                         <button
                           key={staff.id}
+                          type="button"
                           onClick={() => handleSelectStaff(staff)}
                           className="rounded-lg border bg-card px-3 py-2.5 text-center text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.97]"
                         >

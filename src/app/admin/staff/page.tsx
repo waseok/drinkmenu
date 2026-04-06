@@ -32,7 +32,9 @@ import {
   FileSpreadsheet,
   Users,
   X,
+  FolderKanban,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Staff {
   id: string;
@@ -45,6 +47,14 @@ interface StaffFormData {
   name: string;
   department: string;
   position: string;
+}
+
+/** GET /api/staff/groups 응답 형태 */
+interface StaffGroupApi {
+  id: string;
+  name: string;
+  sortOrder: number;
+  members: { staffId: string; staff: Staff }[];
 }
 
 const EMPTY_FORM: StaffFormData = { name: "", department: "", position: "" };
@@ -68,6 +78,14 @@ export default function AdminStaffPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [groups, setGroups] = useState<StaffGroupApi[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(true);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState("");
+  const [groupMemberIds, setGroupMemberIds] = useState<string[]>([]);
+  const [groupSaving, setGroupSaving] = useState(false);
+
   const fetchStaff = useCallback(async () => {
     try {
       const res = await fetch("/api/staff");
@@ -81,9 +99,113 @@ export default function AdminStaffPage() {
     }
   }, []);
 
+  const fetchGroups = useCallback(async () => {
+    setGroupsLoading(true);
+    try {
+      const res = await fetch("/api/staff/groups", { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setGroups(data);
+    } catch {
+      toast.error("맞춤 그룹 목록을 불러오는데 실패했습니다.");
+    } finally {
+      setGroupsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStaff();
-  }, [fetchStaff]);
+    fetchGroups();
+  }, [fetchStaff, fetchGroups]);
+
+  function openNewGroupDialog() {
+    setEditingGroupId(null);
+    setGroupName("");
+    setGroupMemberIds([]);
+    setGroupDialogOpen(true);
+  }
+
+  function openEditGroupDialog(g: StaffGroupApi) {
+    setEditingGroupId(g.id);
+    setGroupName(g.name);
+    setGroupMemberIds(g.members.map((m) => m.staffId));
+    setGroupDialogOpen(true);
+  }
+
+  function toggleGroupMember(staffId: string) {
+    setGroupMemberIds((prev) =>
+      prev.includes(staffId)
+        ? prev.filter((id) => id !== staffId)
+        : [...prev, staffId],
+    );
+  }
+
+  /** 부서(학년) 단위로 그룹 멤버 일괄 추가 */
+  function addDepartmentMembers(dept: string) {
+    const ids = staffList
+      .filter((s) => s.department === dept)
+      .map((s) => s.id);
+    setGroupMemberIds((prev) => [...new Set([...prev, ...ids])]);
+  }
+
+  function removeDepartmentMembers(dept: string) {
+    const idSet = new Set(
+      staffList.filter((s) => s.department === dept).map((s) => s.id),
+    );
+    setGroupMemberIds((prev) => prev.filter((id) => !idSet.has(id)));
+  }
+
+  async function handleSaveGroup() {
+    const name = groupName.trim();
+    if (!name) {
+      toast.error("그룹 이름을 입력해주세요.");
+      return;
+    }
+
+    setGroupSaving(true);
+    try {
+      const isEdit = editingGroupId !== null;
+      const res = await fetch("/api/staff/groups", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isEdit
+            ? { id: editingGroupId, name, staffIds: groupMemberIds }
+            : { name, staffIds: groupMemberIds },
+        ),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "저장 실패");
+      }
+      toast.success(isEdit ? "그룹이 수정되었습니다." : "그룹이 생성되었습니다.");
+      setGroupDialogOpen(false);
+      fetchGroups();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "저장에 실패했습니다.");
+    } finally {
+      setGroupSaving(false);
+    }
+  }
+
+  async function handleDeleteGroup(g: StaffGroupApi) {
+    if (!confirm(`"${g.name}" 그룹을 삭제할까요?`)) return;
+    try {
+      const res = await fetch("/api/staff/groups", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: g.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "삭제 실패");
+      }
+      toast.success("그룹이 삭제되었습니다.");
+      fetchGroups();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "삭제에 실패했습니다.");
+    }
+  }
 
   // --- Add / Edit ---
   function openAddDialog() {
@@ -313,6 +435,62 @@ export default function AdminStaffPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 맞춤 그룹: 세션 대상 일괄 선택·주문 화면 그룹 보기에 사용 */}
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
+          <div className="flex items-center gap-2">
+            <FolderKanban className="size-5 text-muted-foreground" />
+            <CardTitle>맞춤 그룹</CardTitle>
+          </div>
+          <Button size="sm" onClick={openNewGroupDialog}>
+            <Plus className="size-4" />
+            그룹 추가
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {groupsLoading ? (
+            <p className="text-sm text-muted-foreground">불러오는 중...</p>
+          ) : groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              아직 그룹이 없습니다. 팀·동아리 등 원하는 단위로 묶어 두면 세션
+              생성 시 일괄 선택할 수 있습니다.
+            </p>
+          ) : (
+            <ul className="divide-y rounded-lg border">
+              {groups.map((g) => (
+                <li
+                  key={g.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
+                >
+                  <div>
+                    <p className="font-medium">{g.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      멤버 {g.members.length}명
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openEditGroupDialog(g)}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleDeleteGroup(g)}
+                    >
+                      <Trash2 className="size-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Table */}
       <Card>
@@ -606,6 +784,104 @@ export default function AdminStaffPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 맞춤 그룹 추가·수정: 부서 단위 일괄 선택 + 개별 체크 */}
+      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+        <DialogContent className="flex max-h-[min(90vh,720px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="shrink-0 border-b px-4 pt-4 pr-12 pb-3">
+            <DialogTitle>
+              {editingGroupId ? "맞춤 그룹 수정" : "맞춤 그룹 추가"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="group-name">그룹 이름</Label>
+              <Input
+                id="group-name"
+                placeholder="예: 음악부, 3학년 국어팀"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              아래에서 부서(학년)로 한꺼번에 넣거나, 직원을 개별 체크하세요.
+            </p>
+            <div className="max-h-[min(45vh,320px)] overflow-y-auto rounded-lg border bg-muted/20 p-2">
+              {staffList.length === 0 ? (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  등록된 직원이 없습니다.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {departments.map((dept) => {
+                    const members = staffList.filter(
+                      (s) => s.department === dept,
+                    );
+                    return (
+                      <div key={dept}>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {dept}
+                          </span>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              className="h-7 text-xs"
+                              onClick={() => addDepartmentMembers(dept)}
+                            >
+                              부서 전체 추가
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              className="h-7 text-xs"
+                              onClick={() => removeDepartmentMembers(dept)}
+                            >
+                              부서 전체 제거
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="grid gap-1.5">
+                          {members.map((s) => (
+                            <label
+                              key={s.id}
+                              className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 hover:bg-background/80"
+                            >
+                              <Checkbox
+                                checked={groupMemberIds.includes(s.id)}
+                                onCheckedChange={() => toggleGroupMember(s.id)}
+                              />
+                              <span className="text-sm">{s.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              선택된 멤버 {groupMemberIds.length}명
+            </p>
+          </div>
+          <DialogFooter className="!mx-0 !mb-0 shrink-0 border-t bg-background px-4 py-3">
+            <Button
+              variant="outline"
+              onClick={() => setGroupDialogOpen(false)}
+              disabled={groupSaving}
+            >
+              취소
+            </Button>
+            <Button onClick={handleSaveGroup} disabled={groupSaving}>
+              {groupSaving ? "저장 중..." : editingGroupId ? "저장" : "만들기"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
