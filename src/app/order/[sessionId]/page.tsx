@@ -20,6 +20,8 @@ import {
   ListRestartIcon,
   PhoneIcon,
   CopyIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +35,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LogoutButton } from "@/components/logout-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -170,6 +177,12 @@ export default function OrderPage({
   const [namePickerView, setNamePickerView] = useState<"dept" | "groups">(
     "dept",
   );
+  /** 메뉴판 이미지 전체 화면 확대 */
+  const [menuLightbox, setMenuLightbox] = useState<{
+    urls: string[];
+    index: number;
+    shopName: string;
+  } | null>(null);
   const cartSectionRef = useRef<HTMLDivElement | null>(null);
 
   // -- data fetching --------------------------------------------------------
@@ -930,15 +943,31 @@ export default function OrderPage({
                             </CardHeader>
                             <CardContent className="divide-y p-0">
                               {shop.menuImageUrls.map((url, imgIdx) => (
-                                <Image
+                                <button
                                   key={`${shop.id}-menu-img-${imgIdx}`}
-                                  src={url}
-                                  alt={`${shop.name} 메뉴판 ${imgIdx + 1}`}
-                                  width={1200}
-                                  height={1600}
-                                  unoptimized
-                                  className="max-h-[420px] w-full object-contain bg-white"
-                                />
+                                  type="button"
+                                  className="relative block w-full cursor-zoom-in border-0 bg-white p-0 text-left focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                                  aria-label={`${shop.name} 메뉴판 ${imgIdx + 1} 확대 보기`}
+                                  onClick={() =>
+                                    setMenuLightbox({
+                                      urls: shop.menuImageUrls,
+                                      index: imgIdx,
+                                      shopName: shop.name,
+                                    })
+                                  }
+                                >
+                                  <Image
+                                    src={url}
+                                    alt={`${shop.name} 메뉴판 ${imgIdx + 1}`}
+                                    width={1200}
+                                    height={1600}
+                                    unoptimized
+                                    className="pointer-events-none max-h-[420px] w-full object-contain bg-white"
+                                  />
+                                  <span className="pointer-events-none absolute right-2 bottom-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                                    탭하여 확대
+                                  </span>
+                                </button>
                               ))}
                             </CardContent>
                           </Card>
@@ -1237,6 +1266,86 @@ export default function OrderPage({
           </div>
         </div>
       )}
+
+      {/* 메뉴판 이미지 확대 (라이트박스) */}
+      <Dialog
+        open={!!menuLightbox}
+        onOpenChange={(open) => {
+          if (!open) setMenuLightbox(null);
+        }}
+      >
+        <DialogContent
+          showCloseButton
+          className="max-h-[min(96dvh,100vh)] w-[min(96vw,100vw)] max-w-[min(96vw,100vw)] gap-0 border-zinc-700 bg-zinc-950 p-3 text-white sm:max-w-[min(96vw,100vw)] [&_[data-slot=dialog-close]]:text-white [&_[data-slot=dialog-close]]:hover:bg-white/10"
+        >
+          {menuLightbox && (
+            <>
+              <DialogTitle className="sr-only">
+                {menuLightbox.shopName} 메뉴판{" "}
+                {menuLightbox.index + 1} / {menuLightbox.urls.length}
+              </DialogTitle>
+              <p className="mb-2 text-center text-xs text-zinc-400">
+                {menuLightbox.shopName} · {menuLightbox.index + 1} /{" "}
+                {menuLightbox.urls.length}
+              </p>
+              <div className="relative flex max-h-[min(82dvh,85vh)] w-full items-center justify-center">
+                {menuLightbox.urls.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute left-0 z-10 h-10 w-10 shrink-0 text-white hover:bg-white/15"
+                    aria-label="이전 이미지"
+                    onClick={() =>
+                      setMenuLightbox((prev) => {
+                        if (!prev) return prev;
+                        const n = prev.urls.length;
+                        return {
+                          ...prev,
+                          index: (prev.index - 1 + n) % n,
+                        };
+                      })
+                    }
+                  >
+                    <ChevronLeftIcon className="size-6" />
+                  </Button>
+                )}
+                <div className="flex min-h-0 w-full flex-1 items-center justify-center px-10">
+                  <Image
+                    src={menuLightbox.urls[menuLightbox.index]!}
+                    alt={`${menuLightbox.shopName} 메뉴판 ${menuLightbox.index + 1}`}
+                    width={1600}
+                    height={2000}
+                    unoptimized
+                    className="max-h-[min(82dvh,85vh)] w-auto max-w-full object-contain"
+                  />
+                </div>
+                {menuLightbox.urls.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 z-10 h-10 w-10 shrink-0 text-white hover:bg-white/15"
+                    aria-label="다음 이미지"
+                    onClick={() =>
+                      setMenuLightbox((prev) => {
+                        if (!prev) return prev;
+                        const n = prev.urls.length;
+                        return {
+                          ...prev,
+                          index: (prev.index + 1) % n,
+                        };
+                      })
+                    }
+                  >
+                    <ChevronRightIcon className="size-6" />
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

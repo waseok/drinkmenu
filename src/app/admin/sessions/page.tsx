@@ -405,7 +405,14 @@ export default function AdminSessionsPage() {
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <CardTitle className="truncate">{session.title}</CardTitle>
+                <CardTitle className="truncate">
+                  <Link
+                    href={`/order/${session.id}/result`}
+                    className="hover:underline"
+                  >
+                    {session.title}
+                  </Link>
+                </CardTitle>
                 <Badge
                   variant={session.status === "OPEN" ? "default" : "secondary"}
                 >

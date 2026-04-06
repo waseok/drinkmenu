@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import {
@@ -11,6 +11,7 @@ import {
   StoreIcon,
   HomeIcon,
   ListRestartIcon,
+  UserXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,11 +59,17 @@ interface Order {
   menuItem: MenuItem;
 }
 
+interface SessionTargetRow {
+  staffId: string;
+  staff: Staff;
+}
+
 interface Session {
   id: string;
   title: string;
   date: string;
   status: "OPEN" | "CLOSED";
+  sessionTargets?: SessionTargetRow[];
 }
 
 function formatPrice(price: number) {
@@ -145,6 +152,24 @@ export default function ResultPage({
   const grandTotal = orders.reduce((sum, o) => sum + o.price * o.quantity, 0);
   const totalCount = orders.reduce((sum, o) => sum + o.quantity, 0);
 
+  /** 세션에 주문 대상이 지정된 경우, 아직 한 건도 주문하지 않은 교직원 */
+  const notOrderedStaff = useMemo(() => {
+    const targets = session?.sessionTargets;
+    if (!targets?.length) return [];
+    const orderedIds = new Set(orders.map((o) => o.staffId));
+    return targets
+      .filter((t) => !orderedIds.has(t.staffId))
+      .map((t) => t.staff)
+      .sort((a, b) => {
+        const d = a.department.localeCompare(b.department, "ko");
+        if (d !== 0) return d;
+        return a.name.localeCompare(b.name, "ko");
+      });
+  }, [session?.sessionTargets, orders]);
+
+  const hasSessionTargets =
+    (session?.sessionTargets?.length ?? 0) > 0;
+
   async function handleExportImage() {
     if (!exportRef.current) return;
     try {
@@ -187,6 +212,16 @@ export default function ResultPage({
       "",
       `합계: ${totalCount}건 / ${formatPrice(grandTotal)}`,
     ];
+
+    if (notOrderedStaff.length > 0) {
+      lines.push(
+        "",
+        "[ 미주문자 ]",
+        ...notOrderedStaff.map((s) => `  · ${s.department} ${s.name}`),
+      );
+    } else if (hasSessionTargets) {
+      lines.push("", "[ 미주문자 ]", "  (없음 · 대상 전원 주문)");
+    }
 
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
@@ -356,6 +391,42 @@ export default function ResultPage({
               {formatDateKorean(session.date)}
             </p>
           </div>
+
+          {hasSessionTargets && (
+            <Card className="mb-4 border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/25">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <UserXIcon className="size-4 text-amber-800 dark:text-amber-200" />
+                  미주문 현황
+                  <Badge variant="outline" className="ml-1 font-normal">
+                    대상 {session.sessionTargets!.length}명 중 미주문{" "}
+                    {notOrderedStaff.length}명
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {notOrderedStaff.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    지정된 주문 대상이 모두 주문했습니다.
+                  </p>
+                ) : (
+                  <ul className="grid gap-1 text-sm sm:grid-cols-2">
+                    {notOrderedStaff.map((s) => (
+                      <li
+                        key={s.id}
+                        className="flex justify-between gap-2 rounded-md border border-amber-200/80 bg-background/80 px-2 py-1.5 dark:border-amber-900/50"
+                      >
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-muted-foreground">
+                          {s.department}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Summary Table */}
           <Card>
