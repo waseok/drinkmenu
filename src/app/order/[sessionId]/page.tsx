@@ -183,7 +183,30 @@ export default function OrderPage({
     index: number;
     shopName: string;
   } | null>(null);
+  /** 메뉴판 라이트박스 배율 100~300% (25% 단계) */
+  const [lightboxZoom, setLightboxZoom] = useState(100);
   const cartSectionRef = useRef<HTMLDivElement | null>(null);
+
+  /** 라이트박스를 열거나 다른 이미지로 바꿀 때 배율 초기화 */
+  useEffect(() => {
+    if (menuLightbox) setLightboxZoom(100);
+  }, [menuLightbox]);
+
+  /** 세션 전체 주문 목록만 다시 받아 이름 선택 화면의 '주문함' 표시를 최신으로 유지 */
+  const refreshSessionOrders = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data: Session = await res.json();
+      setSession((prev) =>
+        prev ? { ...prev, orders: data.orders } : prev,
+      );
+    } catch {
+      /* 무시: 보조 갱신 */
+    }
+  }, [sessionId]);
 
   // -- data fetching --------------------------------------------------------
 
@@ -410,13 +433,14 @@ export default function OrderPage({
       setCompletedOrdersOpen(false);
       setCart([]);
       await fetchExistingOrders(resolvedStaff?.id ?? (isManual ? null : selectedStaff.id));
+      void refreshSessionOrders();
       setStep(3);
     } catch {
       toast.error("주문 중 오류가 발생했습니다.");
     } finally {
       setSubmitting(false);
     }
-  }, [selectedStaff, cart, sessionId, fetchExistingOrders]);
+  }, [selectedStaff, cart, sessionId, fetchExistingOrders, refreshSessionOrders]);
 
   const handleDeleteOrder = useCallback(
     async (orderId: string) => {
@@ -430,6 +454,7 @@ export default function OrderPage({
         if (res.ok) {
           toast.success("주문이 삭제되었습니다.");
           if (selectedStaff) await fetchExistingOrders(selectedStaff.id);
+          void refreshSessionOrders();
         } else {
           toast.error("주문 삭제에 실패했습니다.");
         }
@@ -437,7 +462,7 @@ export default function OrderPage({
         toast.error("오류가 발생했습니다.");
       }
     },
-    [selectedStaff, fetchExistingOrders],
+    [selectedStaff, fetchExistingOrders, refreshSessionOrders],
   );
 
   // -- computed values ------------------------------------------------------
@@ -491,6 +516,15 @@ export default function OrderPage({
   const hasCustomPickerGroups =
     (session?.pickerGroups?.length ?? 0) > 0;
 
+  /** 이번 세션에서 한 건이라도 주문한 교직원 id (이름 선택 단계에서 음영 표시) */
+  const staffIdsWithOrders = useMemo(() => {
+    const ids = new Set<string>();
+    for (const o of session?.orders ?? []) {
+      if (o.staffId) ids.add(o.staffId);
+    }
+    return ids;
+  }, [session?.orders]);
+
   // -- early returns --------------------------------------------------------
 
   if (loading) {
@@ -526,6 +560,16 @@ export default function OrderPage({
   }
 
   if (!session) return null;
+
+  /** 이름 선택 버튼: 이미 주문한 사람은 음영 + '주문함' 표시 (추가 주문 가능) */
+  function staffPickerButtonClass(staffId: string) {
+    return cn(
+      "rounded-lg border px-2 py-2 text-center text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.97]",
+      staffIdsWithOrders.has(staffId)
+        ? "border-muted-foreground/25 bg-muted/50 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] hover:bg-muted/65 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+        : "bg-card",
+    );
+  }
 
   // -- step indicator -------------------------------------------------------
 
@@ -734,9 +778,16 @@ export default function OrderPage({
                             key={staff.id}
                             type="button"
                             onClick={() => handleSelectStaff(staff)}
-                            className="rounded-lg border bg-card px-3 py-2.5 text-center text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.97]"
+                            className={staffPickerButtonClass(staff.id)}
                           >
-                            {staff.name}
+                            <span className="block leading-tight">
+                              {staff.name}
+                            </span>
+                            {staffIdsWithOrders.has(staff.id) && (
+                              <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
+                                주문함
+                              </span>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -761,9 +812,16 @@ export default function OrderPage({
                           key={staff.id}
                           type="button"
                           onClick={() => handleSelectStaff(staff)}
-                          className="rounded-lg border bg-card px-3 py-2.5 text-center text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.97]"
+                          className={staffPickerButtonClass(staff.id)}
                         >
-                          {staff.name}
+                          <span className="block leading-tight">
+                            {staff.name}
+                          </span>
+                          {staffIdsWithOrders.has(staff.id) && (
+                            <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
+                              주문함
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -1288,60 +1346,118 @@ export default function OrderPage({
                 {menuLightbox.shopName} · {menuLightbox.index + 1} /{" "}
                 {menuLightbox.urls.length}
               </p>
-              <div className="relative flex max-h-[min(82dvh,85vh)] w-full items-center justify-center">
-                {menuLightbox.urls.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute left-0 z-10 h-10 w-10 shrink-0 text-white hover:bg-white/15"
-                    aria-label="이전 이미지"
-                    onClick={() =>
-                      setMenuLightbox((prev) => {
-                        if (!prev) return prev;
-                        const n = prev.urls.length;
-                        return {
-                          ...prev,
-                          index: (prev.index - 1 + n) % n,
-                        };
-                      })
-                    }
-                  >
-                    <ChevronLeftIcon className="size-6" />
-                  </Button>
-                )}
-                <div className="flex min-h-0 w-full flex-1 items-center justify-center px-10">
-                  <Image
-                    src={menuLightbox.urls[menuLightbox.index]!}
-                    alt={`${menuLightbox.shopName} 메뉴판 ${menuLightbox.index + 1}`}
-                    width={1600}
-                    height={2000}
-                    unoptimized
-                    className="max-h-[min(82dvh,85vh)] w-auto max-w-full object-contain"
-                  />
-                </div>
-                {menuLightbox.urls.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 z-10 h-10 w-10 shrink-0 text-white hover:bg-white/15"
-                    aria-label="다음 이미지"
-                    onClick={() =>
-                      setMenuLightbox((prev) => {
-                        if (!prev) return prev;
-                        const n = prev.urls.length;
-                        return {
-                          ...prev,
-                          index: (prev.index + 1) % n,
-                        };
-                      })
-                    }
-                  >
-                    <ChevronRightIcon className="size-6" />
-                  </Button>
-                )}
+              {/* 100~300% 배율 (25% 단계), 스크롤로 확대된 부분 탐색 */}
+              <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1 text-white hover:bg-white/15 disabled:opacity-40"
+                  aria-label="축소"
+                  disabled={lightboxZoom <= 100}
+                  onClick={() =>
+                    setLightboxZoom((z) => Math.max(100, z - 25))
+                  }
+                >
+                  <MinusIcon className="size-4" />
+                  축소
+                </Button>
+                <span className="min-w-[4rem] text-center text-xs font-medium tabular-nums text-zinc-300">
+                  {lightboxZoom}%
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1 text-white hover:bg-white/15 disabled:opacity-40"
+                  aria-label="확대"
+                  disabled={lightboxZoom >= 300}
+                  onClick={() =>
+                    setLightboxZoom((z) => Math.min(300, z + 25))
+                  }
+                >
+                  확대
+                  <PlusIcon className="size-4" />
+                </Button>
               </div>
+              {(() => {
+                const scale = lightboxZoom / 100;
+                return (
+                  <div className="flex max-h-[min(82dvh,86vh)] w-full items-stretch justify-center gap-1 sm:gap-2">
+                    {menuLightbox.urls.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-auto min-h-[2.5rem] w-9 shrink-0 self-center text-white hover:bg-white/15 sm:w-10"
+                        aria-label="이전 이미지"
+                        onClick={() =>
+                          setMenuLightbox((prev) => {
+                            if (!prev) return prev;
+                            const n = prev.urls.length;
+                            return {
+                              ...prev,
+                              index: (prev.index - 1 + n) % n,
+                            };
+                          })
+                        }
+                      >
+                        <ChevronLeftIcon className="size-6" />
+                      </Button>
+                    )}
+                    <div className="max-h-[min(78dvh,80vh)] min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain rounded-md border border-zinc-800 bg-zinc-900/40">
+                      <div
+                        className="flex items-center justify-center p-3 sm:p-4"
+                        style={{
+                          minWidth:
+                            scale <= 1 ? "100%" : `${Math.min(scale * 100, 400)}%`,
+                          minHeight:
+                            scale <= 1
+                              ? "min(72dvh, 70vh)"
+                              : `${Math.min(70 * scale, 210)}vh`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            transform: `scale(${scale})`,
+                            transformOrigin: "center center",
+                          }}
+                        >
+                          <Image
+                            src={menuLightbox.urls[menuLightbox.index]!}
+                            alt={`${menuLightbox.shopName} 메뉴판 ${menuLightbox.index + 1}`}
+                            width={1600}
+                            height={2000}
+                            unoptimized
+                            className="max-h-[65dvh] w-auto max-w-[min(88vw,920px)] object-contain"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {menuLightbox.urls.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-auto min-h-[2.5rem] w-9 shrink-0 self-center text-white hover:bg-white/15 sm:w-10"
+                        aria-label="다음 이미지"
+                        onClick={() =>
+                          setMenuLightbox((prev) => {
+                            if (!prev) return prev;
+                            const n = prev.urls.length;
+                            return {
+                              ...prev,
+                              index: (prev.index + 1) % n,
+                            };
+                          })
+                        }
+                      >
+                        <ChevronRightIcon className="size-6" />
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
         </DialogContent>
