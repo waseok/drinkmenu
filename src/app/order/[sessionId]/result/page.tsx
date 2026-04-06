@@ -94,8 +94,8 @@ export default function ResultPage({
   const fetchData = useCallback(async () => {
     try {
       const [sessionRes, ordersRes] = await Promise.all([
-        fetch(`/api/sessions/${sessionId}`),
-        fetch(`/api/orders?sessionId=${sessionId}`),
+        fetch(`/api/sessions/${sessionId}`, { cache: "no-store" }),
+        fetch(`/api/orders?sessionId=${sessionId}`, { cache: "no-store" }),
       ]);
 
       if (!sessionRes.ok || !ordersRes.ok) throw new Error();

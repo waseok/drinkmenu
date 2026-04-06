@@ -2,7 +2,6 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LockKeyholeIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,6 @@ interface AccessFormProps {
 }
 
 export default function AccessForm({ nextPath, scope }: AccessFormProps) {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,8 +41,8 @@ export default function AccessForm({ nextPath, scope }: AccessFormProps) {
       }
 
       toast.success("인증되었습니다.");
-      router.replace(nextPath);
-      router.refresh();
+      // 쿠키가 즉시 반영되도록 전체 페이지 이동으로 전환합니다.
+      window.location.replace(nextPath);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "인증에 실패했습니다."

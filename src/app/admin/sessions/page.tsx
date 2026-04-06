@@ -86,7 +86,7 @@ export default function AdminSessionsPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch("/api/sessions");
+      const res = await fetch("/api/sessions", { cache: "no-store" });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSessions(data);
@@ -180,7 +180,7 @@ export default function AdminSessionsPage() {
         toast.success("새 세션이 생성되었습니다.");
       }
       setDialogOpen(false);
-      fetchSessions();
+      await fetchSessions();
     } catch {
       toast.error(
         editingSession
@@ -203,7 +203,7 @@ export default function AdminSessionsPage() {
       });
       if (!res.ok) throw new Error();
       toast.success("세션이 삭제되었습니다.");
-      fetchSessions();
+      await fetchSessions();
     } catch {
       toast.error("세션 삭제에 실패했습니다.");
     }
@@ -223,7 +223,7 @@ export default function AdminSessionsPage() {
           ? "세션이 다시 열렸습니다."
           : "세션이 마감되었습니다."
       );
-      fetchSessions();
+      await fetchSessions();
     } catch {
       toast.error("상태 변경에 실패했습니다.");
     }
@@ -245,6 +245,90 @@ export default function AdminSessionsPage() {
     );
   }
 
+  const openSessions = sessions.filter((session) => session.status === "OPEN");
+  const closedSessions = sessions.filter((session) => session.status === "CLOSED");
+  const totalOrders = sessions.reduce(
+    (sum, session) => sum + session._count.orders,
+    0
+  );
+
+  function renderSessionCard(session: Session) {
+    return (
+      <Card
+        key={session.id}
+        className="soft-card overflow-hidden rounded-3xl transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_-32px_rgba(15,23,42,0.28)]"
+      >
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <CardTitle className="truncate">{session.title}</CardTitle>
+                <Badge
+                  variant={session.status === "OPEN" ? "default" : "secondary"}
+                >
+                  {session.status === "OPEN" ? "진행중" : "완료"}
+                </Badge>
+              </div>
+              <CardDescription className="mt-1 flex items-center gap-1">
+                <CalendarIcon className="size-3.5" />
+                {formatDateKorean(session.date)}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <span>주문 {session._count.orders}건</span>
+            {session.sessionShops.length > 0 && (
+              <span>
+                매장: {session.sessionShops.map((ss) => ss.shop.name).join(", ")}
+              </span>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter className="flex-wrap gap-2 border-t bg-muted/20">
+          <Link href={`/order/${session.id}/result`}>
+            <Button variant="outline" size="sm">
+              <LinkIcon data-icon="inline-start" />
+              주문 결과 보기
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => copyOrderLink(session.id)}
+          >
+            <CopyIcon data-icon="inline-start" />
+            주문 링크 복사
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openEditDialog(session)}
+          >
+            <PencilIcon data-icon="inline-start" />
+            수정
+          </Button>
+          <Button
+            variant={session.status === "OPEN" ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => handleToggleStatus(session)}
+          >
+            {session.status === "OPEN" ? "마감하기" : "다시 열기"}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => handleDelete(session)}
+          >
+            <TrashIcon data-icon="inline-start" />
+            삭제
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
   return (
     <div className="page-shell max-w-6xl">
       <div className="page-hero mb-8">
@@ -258,7 +342,7 @@ export default function AdminSessionsPage() {
               주문 링크를 만들고 마감 상태와 결과를 한 번에 관리합니다.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border bg-background/80 px-4 py-3 text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 Total
@@ -269,17 +353,19 @@ export default function AdminSessionsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 Open
               </p>
-              <p className="mt-2 text-lg font-semibold">
-                {sessions.filter((session) => session.status === "OPEN").length}
+              <p className="mt-2 text-lg font-semibold">{openSessions.length}</p>
+            </div>
+            <div className="rounded-2xl border bg-background/80 px-4 py-3 text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Closed
               </p>
+              <p className="mt-2 text-lg font-semibold">{closedSessions.length}</p>
             </div>
             <div className="rounded-2xl border bg-background/80 px-4 py-3 text-center">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 Orders
               </p>
-              <p className="mt-2 text-lg font-semibold">
-                {sessions.reduce((sum, session) => sum + session._count.orders, 0)}
-              </p>
+              <p className="mt-2 text-lg font-semibold">{totalOrders}</p>
             </div>
           </div>
         </div>
@@ -376,90 +462,38 @@ export default function AdminSessionsPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-5">
-          {sessions.map((session) => (
-            <Card
-              key={session.id}
-              className="soft-card overflow-hidden rounded-3xl transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_-32px_rgba(15,23,42,0.28)]"
-            >
-              <CardHeader className="pb-4">
-                <div className="flex items-start justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="truncate">
-                        {session.title}
-                      </CardTitle>
-                      <Badge
-                        variant={
-                          session.status === "OPEN" ? "default" : "secondary"
-                        }
-                      >
-                        {session.status === "OPEN" ? "진행중" : "마감"}
-                      </Badge>
-                    </div>
-                    <CardDescription className="mt-1 flex items-center gap-1">
-                      <CalendarIcon className="size-3.5" />
-                      {formatDateKorean(session.date)}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                  <span>
-                    주문 {session._count.orders}건
-                  </span>
-                  {session.sessionShops.length > 0 && (
-                    <span>
-                      매장:{" "}
-                      {session.sessionShops
-                        .map((ss) => ss.shop.name)
-                        .join(", ")}
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="flex-wrap gap-2 border-t bg-muted/20">
-                <Link href={`/order/${session.id}/result`}>
-                  <Button variant="outline" size="sm">
-                    <LinkIcon data-icon="inline-start" />
-                    주문 결과 보기
-                  </Button>
-                </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => copyOrderLink(session.id)}
-                >
-                  <CopyIcon data-icon="inline-start" />
-                  주문 링크 복사
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditDialog(session)}
-                >
-                  <PencilIcon data-icon="inline-start" />
-                  수정
-                </Button>
-                <Button
-                  variant={session.status === "OPEN" ? "secondary" : "outline"}
-                  size="sm"
-                  onClick={() => handleToggleStatus(session)}
-                >
-                  {session.status === "OPEN" ? "마감하기" : "다시 열기"}
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDelete(session)}
-                >
-                  <TrashIcon data-icon="inline-start" />
-                  삭제
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+        <div className="grid gap-8">
+          <section className="grid gap-5">
+            <div>
+              <h2 className="text-xl font-semibold">진행 중인 세션</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                현재 주문 가능한 세션입니다.
+              </p>
+            </div>
+            {openSessions.length === 0 ? (
+              <div className="rounded-3xl border border-dashed bg-background/70 px-6 py-10 text-sm text-muted-foreground">
+                진행 중인 세션이 없습니다.
+              </div>
+            ) : (
+              openSessions.map((session) => renderSessionCard(session))
+            )}
+          </section>
+
+          <section className="grid gap-5">
+            <div>
+              <h2 className="text-xl font-semibold">완료된 세션</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                마감된 주문 세션은 이 목록으로 이동합니다.
+              </p>
+            </div>
+            {closedSessions.length === 0 ? (
+              <div className="rounded-3xl border border-dashed bg-background/70 px-6 py-10 text-sm text-muted-foreground">
+                완료된 세션이 없습니다.
+              </div>
+            ) : (
+              closedSessions.map((session) => renderSessionCard(session))
+            )}
+          </section>
         </div>
       )}
     </div>
