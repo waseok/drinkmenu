@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const MAX_MENU_IMAGES = 3;
+
+function normalizeMenuImageUrlsInput(body: Record<string, unknown>): string[] {
+  if (Array.isArray(body.menuImageUrls)) {
+    return body.menuImageUrls
+      .filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+      .slice(0, MAX_MENU_IMAGES);
+  }
+  if (typeof body.menuImageUrl === "string" && body.menuImageUrl.trim()) {
+    return [body.menuImageUrl.trim()];
+  }
+  return [];
+}
+
 export async function GET() {
   try {
     const shops = await prisma.shop.findMany({
-      include: { menuItems: true },
+      include: {
+        menuItems: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        },
+      },
       orderBy: { name: "asc" },
     });
     return NextResponse.json(shops);
@@ -19,24 +37,26 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, address, phone, category, naverPlaceId, menuImageUrl } = body;
+    const body = (await request.json()) as Record<string, unknown>;
+    const { name, address, phone, category, naverPlaceId } = body;
 
-    if (!name) {
+    if (!name || typeof name !== "string") {
       return NextResponse.json(
         { error: "매장 이름은 필수입니다." },
         { status: 400 }
       );
     }
 
+    const menuImageUrls = normalizeMenuImageUrlsInput(body);
+
     const shop = await prisma.shop.create({
       data: {
         name,
-        address: address ?? "",
-        phone: phone ?? "",
-        category: category ?? "",
-        naverPlaceId: naverPlaceId ?? "",
-        menuImageUrl: menuImageUrl ?? "",
+        address: typeof address === "string" ? address : "",
+        phone: typeof phone === "string" ? phone : "",
+        category: typeof category === "string" ? category : "",
+        naverPlaceId: typeof naverPlaceId === "string" ? naverPlaceId : "",
+        menuImageUrls,
       },
     });
 
@@ -52,25 +72,36 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { id, name, address, phone, category, naverPlaceId, menuImageUrl } = body;
+    const body = (await request.json()) as Record<string, unknown>;
+    const { id, name, address, phone, category, naverPlaceId } = body;
 
-    if (!id) {
+    if (!id || typeof id !== "string") {
       return NextResponse.json(
         { error: "매장 ID는 필수입니다." },
         { status: 400 }
       );
     }
 
+    const menuUrlsPatch =
+      "menuImageUrls" in body || "menuImageUrl" in body
+        ? normalizeMenuImageUrlsInput(body)
+        : undefined;
+
     const shop = await prisma.shop.update({
       where: { id },
       data: {
-        ...(name !== undefined && { name }),
-        ...(address !== undefined && { address }),
-        ...(phone !== undefined && { phone }),
-        ...(category !== undefined && { category }),
-        ...(naverPlaceId !== undefined && { naverPlaceId }),
-        ...(menuImageUrl !== undefined && { menuImageUrl }),
+        ...(name !== undefined && typeof name === "string" ? { name } : {}),
+        ...(address !== undefined && typeof address === "string"
+          ? { address }
+          : {}),
+        ...(phone !== undefined && typeof phone === "string" ? { phone } : {}),
+        ...(category !== undefined && typeof category === "string"
+          ? { category }
+          : {}),
+        ...(naverPlaceId !== undefined && typeof naverPlaceId === "string"
+          ? { naverPlaceId }
+          : {}),
+        ...(menuUrlsPatch !== undefined ? { menuImageUrls: menuUrlsPatch } : {}),
       },
     });
 

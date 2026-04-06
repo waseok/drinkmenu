@@ -26,7 +26,7 @@ model Shop {
   phone          String     @default("")
   category       String     @default("")
   naverPlaceId   String     @default("")
-  menuImageUrl   String     @default("") @db.Text
+  menuImageUrls  String[]   @default([])
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   menuItems      MenuItem[]
@@ -41,6 +41,7 @@ model MenuItem {
   name        String
   price       Int
   category    String   @default("")
+  sortOrder   Int      @default(0)
   isAvailable Boolean  @default(true)
   isIce       Boolean  @default(false)
   isHot       Boolean  @default(false)
