@@ -1104,7 +1104,7 @@ export default function OrderPage({
                       >
                         <div className="min-w-0 flex-1">
                           <span className="font-medium">
-                            {order.menuItem.name}
+                            {order.menuItem?.name ?? order.customItemName ?? "직접 입력"}
                           </span>
                           {order.options && (
                             <span className="ml-1 text-xs text-muted-foreground">
