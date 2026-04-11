@@ -26,6 +26,10 @@ function getAccessScope(pathname: string, method: string): "admin" | "order" | n
     return method === "GET" ? "order" : "admin";
   }
 
+  if (pathname === "/api/sessions" && method === "GET") {
+    return "order";
+  }
+
   if (
     pathname.startsWith("/api/shops") ||
     pathname.startsWith("/api/crawl") ||
