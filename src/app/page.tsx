@@ -85,8 +85,7 @@ export default function Home() {
                   </div>
                   <CardTitle className="text-2xl">주문하기</CardTitle>
                   <CardDescription className="text-sm leading-6">
-                    진행 중인 주문 세션으로 들어가 음료를 선택하고 주문 상태를
-                    확인합니다.
+                    진행 중인 음료 취합에 참여해 음료를 선택하고 주문합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -105,7 +104,7 @@ export default function Home() {
                   </div>
                   <CardTitle className="text-2xl">관리자</CardTitle>
                   <CardDescription className="text-sm leading-6">
-                    교직원, 업체, 메뉴, 주문 세션을 관리하고 결과를 정리합니다.
+                    교직원, 음료 업체, 메뉴, 취합 세션을 관리하고 결과를 정리합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">

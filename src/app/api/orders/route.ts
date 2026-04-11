@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
           include: { shop: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
     });
 
     return NextResponse.json(orders);
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       staffName,
       staffDepartment,
       menuItemId,
+      customItemName,
       quantity,
       options,
       price,
@@ -53,13 +54,14 @@ export async function POST(request: NextRequest) {
       staffId?: string;
       staffName?: string;
       staffDepartment?: string;
-      menuItemId: string;
+      menuItemId?: string;
+      customItemName?: string;
       quantity: number;
       options: string;
       price: number;
     };
 
-    if (!sessionId || !menuItemId || !price || (!staffId && !staffName?.trim())) {
+    if (!sessionId || (!menuItemId && !customItemName?.trim()) || price == null || (!staffId && !staffName?.trim())) {
       return NextResponse.json(
         { error: "필수 항목을 모두 입력해주세요." },
         { status: 400 }
@@ -130,16 +132,15 @@ export async function POST(request: NextRequest) {
       data: {
         sessionId,
         staffId: resolvedStaffId,
-        menuItemId,
+        ...(menuItemId ? { menuItemId } : {}),
+        ...(customItemName ? { customItemName: customItemName.trim() } : {}),
         quantity: quantity || 1,
         options: options || "",
         price,
       },
       include: {
         staff: true,
-        menuItem: {
-          include: { shop: true },
-        },
+        menuItem: menuItemId ? { include: { shop: true } } : false,
       },
     });
 
