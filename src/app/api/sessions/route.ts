@@ -14,6 +14,7 @@ function mapSessionListItem(
     id: string;
     title: string;
     date: Date;
+    deadlineTime: string | null;
     status: string;
     createdAt: Date;
     updatedAt: Date;
@@ -83,9 +84,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, date, shopIds, staffIds } = body as {
+    const { title, date, deadlineTime, shopIds, staffIds } = body as {
       title: string;
       date: string;
+      deadlineTime?: string;
       shopIds: string[];
       staffIds?: string[];
     };
@@ -106,6 +108,7 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         date: new Date(date),
+        deadlineTime: deadlineTime || null,
         sessionShops: {
           create: shopIds.map((shopId) => ({ shopId })),
         },
@@ -144,10 +147,11 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, title, date, status, shopIds, staffIds } = body as {
+    const { id, title, date, deadlineTime, status, shopIds, staffIds } = body as {
       id: string;
       title?: string;
       date?: string;
+      deadlineTime?: string | null;
       status?: "OPEN" | "CLOSED";
       shopIds?: string[];
       staffIds?: string[];
@@ -163,6 +167,7 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, unknown> = {};
     if (title !== undefined) updateData.title = title;
     if (date !== undefined) updateData.date = new Date(date);
+    if (deadlineTime !== undefined) updateData.deadlineTime = deadlineTime || null;
     if (status !== undefined) updateData.status = status;
 
     const session = await prisma.$transaction(async (tx) => {

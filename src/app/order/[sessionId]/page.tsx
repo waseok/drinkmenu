@@ -111,6 +111,7 @@ interface Session {
   id: string;
   title: string;
   date: string;
+  deadlineTime?: string | null;
   status: "OPEN" | "CLOSED";
   sessionShops: SessionShop[];
   orders: OrderItem[];
@@ -219,6 +220,7 @@ export default function OrderPage({
   const [session, setSession] = useState<Session | null>(null);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<Orderer | null>(null);
+  const [lastStaff, setLastStaff] = useState<Staff | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [manualName, setManualName] = useState("");
   const [manualDepartment, setManualDepartment] = useState("");
@@ -314,6 +316,17 @@ export default function OrderPage({
         setSession(sessionData);
         setStaffList(filteredStaff);
         setNamePickerView("dept");
+
+        // localStorage에서 마지막 선택 직원 복원
+        try {
+          const savedId = localStorage.getItem("drinkmenu_last_staff_id");
+          if (savedId) {
+            const found = filteredStaff.find((s) => s.id === savedId);
+            if (found) setLastStaff(found);
+          }
+        } catch {
+          /* localStorage 접근 불가 환경 무시 */
+        }
       } catch {
         if (!cancelled) setError("데이터를 불러오는 중 오류가 발생했습니다.");
       } finally {
@@ -354,6 +367,12 @@ export default function OrderPage({
       setSelectedStaff(staff);
       setStep(2);
       fetchExistingOrders(staff.id);
+      // 마지막 선택 직원 저장
+      try {
+        localStorage.setItem("drinkmenu_last_staff_id", staff.id);
+      } catch {
+        /* ignore */
+      }
     },
     [fetchExistingOrders],
   );
@@ -539,6 +558,48 @@ export default function OrderPage({
     }
   }, [selectedStaff, cart, sessionId, fetchExistingOrders, refreshSessionOrders]);
 
+  const handleUpdateOrderQty = useCallback(
+    async (orderId: string, newQty: number) => {
+      if (newQty <= 0) {
+        if (!confirm("수량을 0으로 줄이면 이 주문이 삭제됩니다. 계속하시겠습니까?")) return;
+        // 0 이하면 삭제
+        try {
+          const res = await fetch("/api/orders", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: orderId }),
+          });
+          if (res.ok) {
+            toast.success("주문이 삭제되었습니다.");
+            if (selectedStaff) await fetchExistingOrders(selectedStaff.id);
+            void refreshSessionOrders();
+          } else {
+            toast.error("주문 삭제에 실패했습니다.");
+          }
+        } catch {
+          toast.error("오류가 발생했습니다.");
+        }
+        return;
+      }
+      try {
+        const res = await fetch("/api/orders", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: orderId, quantity: newQty }),
+        });
+        if (res.ok) {
+          toast.success("수량이 변경되었습니다.");
+          if (selectedStaff) await fetchExistingOrders(selectedStaff.id);
+        } else {
+          toast.error("수량 변경에 실패했습니다.");
+        }
+      } catch {
+        toast.error("오류가 발생했습니다.");
+      }
+    },
+    [selectedStaff, fetchExistingOrders, refreshSessionOrders],
+  );
+
   const handleDeleteOrder = useCallback(
     async (orderId: string) => {
       if (!confirm("이 주문을 삭제하시겠습니까?")) return;
@@ -566,6 +627,33 @@ export default function OrderPage({
 
   const cartTotal = cart.reduce((s, c) => s + getCartUnitPrice(c) * c.quantity, 0);
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
+
+  // 마감 시간까지 남은 시간 계산
+  const [deadlineCountdown, setDeadlineCountdown] = useState<string | null>(null);
+  useEffect(() => {
+    if (!session?.deadlineTime || session.status !== "OPEN") {
+      setDeadlineCountdown(null);
+      return;
+    }
+    function calcCountdown() {
+      const now = new Date();
+      const [hh, mm] = session!.deadlineTime!.split(":").map(Number);
+      const deadline = new Date(session!.date);
+      deadline.setHours(hh, mm, 0, 0);
+      const diff = deadline.getTime() - now.getTime();
+      if (diff <= 0) {
+        setDeadlineCountdown("마감됨");
+        return;
+      }
+      const totalMin = Math.floor(diff / 60000);
+      const hours = Math.floor(totalMin / 60);
+      const mins = totalMin % 60;
+      setDeadlineCountdown(hours > 0 ? `${hours}시간 ${mins}분` : `${mins}분`);
+    }
+    calcCountdown();
+    const id = setInterval(calcCountdown, 60_000);
+    return () => clearInterval(id);
+  }, [session?.deadlineTime, session?.date, session?.status]);
 
   const groupedStaff = staffList.reduce<Record<string, Staff[]>>(
     (groups, s) => {
@@ -697,6 +785,12 @@ export default function OrderPage({
               <h1 className="text-base font-semibold">{session.title}</h1>
               <p className="text-xs text-muted-foreground">
                 {formatDate(session.date)}
+                {session.deadlineTime && (
+                  <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    마감 {session.deadlineTime}
+                    {deadlineCountdown && ` · ${deadlineCountdown} 남음`}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -820,6 +914,24 @@ export default function OrderPage({
                 </Button>
               </CardContent>
             </Card>
+
+            {/* 지난번 선택 직원 빠른 선택 */}
+            {lastStaff && (
+              <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/25">
+                <div className="text-sm">
+                  <span className="text-xs text-muted-foreground">지난번 선택 · </span>
+                  <span className="font-medium">{lastStaff.department} {lastStaff.name}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="ml-3 shrink-0 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200"
+                  onClick={() => handleSelectStaff(lastStaff)}
+                >
+                  바로 선택
+                </Button>
+              </div>
+            )}
 
             {/* Search */}
             <div className="relative">
@@ -950,12 +1062,13 @@ export default function OrderPage({
 
             <Separator />
 
-            {/* Existing orders notice */}
+            {/* Existing orders (editable) */}
             {existingOrders.length > 0 && (
               <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    기존 주문 {existingOrders.length}건
+                  <CardTitle className="flex items-center justify-between text-sm font-medium text-amber-800 dark:text-amber-200">
+                    <span>기존 주문 {existingOrders.length}건</span>
+                    <span className="text-xs font-normal text-muted-foreground">수량 변경 가능</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -969,23 +1082,36 @@ export default function OrderPage({
                           <span className="font-medium">
                             {order.menuItem.name}
                           </span>
-                          <span className="ml-1 text-muted-foreground">
-                            ×{order.quantity}
-                          </span>
                           {order.options && (
                             <span className="ml-1 text-xs text-muted-foreground">
                               ({order.options})
                             </span>
                           )}
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {formatPrice(order.price)} × {order.quantity} = {formatPrice(order.price * order.quantity)}
+                          </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          <span className="text-xs text-muted-foreground">
-                            {formatPrice(order.price * order.quantity)}
-                          </span>
+                          <Button
+                            variant="outline"
+                            size="icon-xs"
+                            onClick={() => handleUpdateOrderQty(order.id, order.quantity - 1)}
+                          >
+                            <MinusIcon className="size-3" />
+                          </Button>
+                          <span className="w-5 text-center text-sm font-semibold">{order.quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="icon-xs"
+                            onClick={() => handleUpdateOrderQty(order.id, order.quantity + 1)}
+                          >
+                            <PlusIcon className="size-3" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon-xs"
                             onClick={() => handleDeleteOrder(order.id)}
+                            className="ml-1"
                           >
                             <Trash2Icon className="size-3 text-destructive" />
                           </Button>
@@ -1668,6 +1794,23 @@ export default function OrderPage({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── 모바일 장바구니 Sticky 바 (Step 2, 카트 항목 있을 때) ──── */}
+      {step === 2 && cartCount > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur sm:hidden">
+          <button
+            type="button"
+            onClick={handleScrollToCart}
+            className="flex w-full items-center justify-between rounded-2xl bg-amber-500 px-4 py-3 text-white active:bg-amber-600"
+          >
+            <div className="flex items-center gap-2">
+              <ShoppingCartIcon className="size-5" />
+              <span className="font-semibold">{cartCount}개 선택됨</span>
+            </div>
+            <span className="font-bold">{formatPrice(cartTotal)}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
