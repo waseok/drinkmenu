@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Coffee, ShoppingBag, Settings } from "lucide-react";
+import { Coffee, ShoppingBag, Settings, ClipboardList, LayoutDashboard, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,10 +12,16 @@ import {
 export default function Home() {
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.12),_transparent_28%)]" />
+      {/* Background gradients */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.10),_transparent_30%)]" />
+      {/* Subtle coffee-toned decorative circles */}
+      <div className="pointer-events-none absolute -top-24 -right-24 size-96 rounded-full bg-amber-100/30 blur-3xl dark:bg-amber-900/10" />
+      <div className="pointer-events-none absolute -bottom-32 -left-24 size-96 rounded-full bg-blue-100/20 blur-3xl dark:bg-blue-900/10" />
+
       <div className="page-shell relative flex min-h-screen items-center justify-center py-12">
         <div className="flex w-full max-w-5xl flex-col gap-8 lg:flex-row lg:items-stretch">
-          <section className="page-hero flex-1">
+          {/* Hero section */}
+          <section className="page-hero flex-1 animate-slide-up">
             <div className="inline-flex items-center gap-2 rounded-full bg-amber-100/80 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
               <Coffee className="size-4" />
               와석초등학교 교직원 전용
@@ -34,38 +40,48 @@ export default function Home() {
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border bg-background/70 p-4">
+                <div className="mb-2 flex size-8 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30">
+                  <ClipboardList className="size-4 text-blue-600 dark:text-blue-400" />
+                </div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   주문
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   진행 중인 세션에서 바로 음료 선택
                 </p>
               </div>
               <div className="rounded-2xl border bg-background/70 p-4">
+                <div className="mb-2 flex size-8 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <LayoutDashboard className="size-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   관리
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   교직원, 업체, 메뉴, 세션을 한 화면에서 관리
                 </p>
               </div>
               <div className="rounded-2xl border bg-background/70 p-4">
+                <div className="mb-2 flex size-8 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/30">
+                  <FileText className="size-4 text-violet-600 dark:text-violet-400" />
+                </div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   정리
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   전화 주문용 요약과 결과 화면 제공
                 </p>
               </div>
             </div>
           </section>
 
-          <section className="flex w-full flex-col gap-4 lg:max-w-md">
+          {/* CTA cards */}
+          <section className="flex w-full flex-col gap-4 lg:max-w-md animate-slide-up" style={{ animationDelay: "80ms" }}>
             <Link href="/order" className="group">
-              <Card className="soft-card h-full overflow-hidden rounded-3xl transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_-32px_rgba(37,99,235,0.35)]">
+              <Card className="soft-card h-full overflow-hidden rounded-3xl transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_60px_-32px_rgba(217,119,6,0.40)]">
                 <CardHeader className="pb-4">
-                  <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-blue-100 transition-colors group-hover:bg-blue-200 dark:bg-blue-900/30 dark:group-hover:bg-blue-900/50">
-                    <ShoppingBag className="size-7 text-blue-700 dark:text-blue-400" />
+                  <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-amber-100 transition-colors group-hover:bg-amber-200 dark:bg-amber-900/30 dark:group-hover:bg-amber-900/50">
+                    <ShoppingBag className="size-7 text-amber-700 dark:text-amber-400" />
                   </div>
                   <CardTitle className="text-2xl">주문하기</CardTitle>
                   <CardDescription className="text-sm leading-6">
@@ -74,7 +90,7 @@ export default function Home() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <Button className="h-11 w-full rounded-2xl" size="lg">
+                  <Button className="h-11 w-full rounded-2xl bg-amber-500 text-white hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700" size="lg">
                     주문 페이지로 이동
                   </Button>
                 </CardContent>

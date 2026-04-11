@@ -11,6 +11,7 @@ import {
   StoreIcon,
   HomeIcon,
   ListRestartIcon,
+  ShareIcon,
   UserXIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,19 @@ export default function ResultPage({
   const grandTotal = orders.reduce((sum, o) => sum + o.price * o.quantity, 0);
   const totalCount = orders.reduce((sum, o) => sum + o.quantity, 0);
 
+  // 업체별 고유 색상 (뱃지/헤더 강조용)
+  const SHOP_COLORS = [
+    "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+    "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
+    "bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300",
+    "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300",
+    "bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300",
+    "bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300",
+  ];
+  const shopColorMap = Object.fromEntries(
+    Object.keys(shopGroups).map((name, i) => [name, SHOP_COLORS[i % SHOP_COLORS.length]])
+  );
+
   /** 세션에 주문 대상이 지정된 경우, 아직 한 건도 주문하지 않은 교직원 */
   const notOrderedStaff = useMemo(() => {
     const targets = session?.sessionTargets;
@@ -189,6 +203,28 @@ export default function ResultPage({
 
   function handlePrint() {
     window.print();
+  }
+
+  async function handleShare() {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: session?.title ?? "주문 결과",
+          text: `${session?.title} 주문 결과를 확인하세요.`,
+          url,
+        });
+      } catch {
+        /* 사용자가 취소한 경우 무시 */
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("결과 링크가 복사되었습니다.");
+      } catch {
+        toast.error("링크 복사에 실패했습니다.");
+      }
+    }
   }
 
   async function handleCopyClipboard() {
@@ -375,6 +411,10 @@ export default function ResultPage({
               <ClipboardCopyIcon data-icon="inline-start" />
               주문용 요약 복사
             </Button>
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <ShareIcon data-icon="inline-start" />
+              결과 공유
+            </Button>
           </div>
         </div>
 
@@ -463,7 +503,10 @@ export default function ResultPage({
                         </TableCell>
                         <TableCell>{order.staff.department}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">
+                          <Badge
+                            variant="outline"
+                            className={shopColorMap[order.menuItem.shop.name]}
+                          >
                             {order.menuItem.shop.name}
                           </Badge>
                         </TableCell>
@@ -531,12 +574,14 @@ export default function ResultPage({
               <div className="mt-6 space-y-4">
                 <h3 className="text-lg font-semibold">업체별 주문 내역</h3>
                 {shopSubtotals.map((group) => (
-                  <Card key={group.shopName}>
+                  <Card key={group.shopName} className={`border-l-4 ${shopColorMap[group.shopName]?.includes("blue") ? "border-l-blue-400" : shopColorMap[group.shopName]?.includes("emerald") ? "border-l-emerald-400" : shopColorMap[group.shopName]?.includes("violet") ? "border-l-violet-400" : shopColorMap[group.shopName]?.includes("orange") ? "border-l-orange-400" : shopColorMap[group.shopName]?.includes("rose") ? "border-l-rose-400" : "border-l-cyan-400"}`}>
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2">
-                          <StoreIcon className="size-4" />
-                          {group.shopName}
+                          <Badge variant="outline" className={shopColorMap[group.shopName]}>
+                            <StoreIcon className="mr-1 size-3.5" />
+                            {group.shopName}
+                          </Badge>
                         </CardTitle>
                         <div className="flex items-center gap-3 text-sm">
                           <Badge variant="secondary">{group.count}건</Badge>

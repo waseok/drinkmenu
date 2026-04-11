@@ -7,6 +7,7 @@ import {
   CalendarIcon,
   CopyIcon,
   ChevronDownIcon,
+  CopyPlusIcon,
   LinkIcon,
   PencilIcon,
   PlusIcon,
@@ -75,6 +76,7 @@ interface Session {
   id: string;
   title: string;
   date: string;
+  deadlineTime?: string | null;
   status: "OPEN" | "CLOSED";
   createdAt: string;
   updatedAt: string;
@@ -114,6 +116,7 @@ export default function AdminSessionsPage() {
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+  const [deadlineTime, setDeadlineTime] = useState("");
   const [selectedShopIds, setSelectedShopIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -155,6 +158,16 @@ export default function AdminSessionsPage() {
     fetchSessions();
     fetchShops();
   }, [fetchSessions, fetchShops]);
+
+  // 진행 중인 세션이 있을 때 30초마다 자동 갱신
+  useEffect(() => {
+    const hasOpen = sessions.some((s) => s.status === "OPEN");
+    if (!hasOpen) return;
+    const id = setInterval(() => {
+      fetchSessions();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [sessions, fetchSessions]);
 
   /** 대상 선택 UI용 데이터: 다이얼로그가 열릴 때만 요청 */
   useEffect(() => {
@@ -207,6 +220,7 @@ export default function AdminSessionsPage() {
     setEditingSession(null);
     setTitle("");
     setDate(new Date().toISOString().split("T")[0]);
+    setDeadlineTime("");
     setSelectedShopIds([]);
     setSelectedStaffIds([]);
     setTargetPickerTab("dept");
@@ -218,6 +232,7 @@ export default function AdminSessionsPage() {
     setEditingSession(session);
     setTitle(session.title);
     setDate(toInputDate(session.date));
+    setDeadlineTime(session.deadlineTime ?? "");
     setSelectedShopIds(session.sessionShops.map((ss) => ss.shopId));
     setSelectedStaffIds(
       session.sessionTargets?.length
@@ -300,6 +315,7 @@ export default function AdminSessionsPage() {
             id: editingSession.id,
             title: title.trim(),
             date,
+            deadlineTime: deadlineTime || null,
             shopIds: selectedShopIds,
             staffIds: selectedStaffIds,
           }),
@@ -313,6 +329,7 @@ export default function AdminSessionsPage() {
           body: JSON.stringify({
             title: title.trim(),
             date,
+            deadlineTime: deadlineTime || null,
             shopIds: selectedShopIds,
             staffIds: selectedStaffIds,
           }),
@@ -368,6 +385,22 @@ export default function AdminSessionsPage() {
     } catch {
       toast.error("상태 변경에 실패했습니다.");
     }
+  }
+
+  function openCopyDialog(session: Session) {
+    setEditingSession(null);
+    setTitle(`${session.title} (복사)`);
+    setDate(new Date().toISOString().split("T")[0]);
+    setDeadlineTime(session.deadlineTime ?? "");
+    setSelectedShopIds(session.sessionShops.map((ss) => ss.shopId));
+    setSelectedStaffIds(
+      session.sessionTargets?.length
+        ? session.sessionTargets.map((t) => t.staffId)
+        : [],
+    );
+    setTargetPickerTab("dept");
+    setTargetSearch("");
+    setDialogOpen(true);
   }
 
   function copyOrderLink(sessionId: string) {
@@ -506,6 +539,14 @@ export default function AdminSessionsPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => openCopyDialog(session)}
+          >
+            <CopyPlusIcon data-icon="inline-start" />
+            세션 복사
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => openEditDialog(session)}
           >
             <PencilIcon data-icon="inline-start" />
@@ -570,6 +611,11 @@ export default function AdminSessionsPage() {
               <CardDescription className="mt-1 flex items-center gap-1">
                 <CalendarIcon className="size-3.5" />
                 {formatDateKorean(session.date)}
+                {session.deadlineTime && (
+                  <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    마감 {session.deadlineTime}
+                  </span>
+                )}
               </CardDescription>
             </div>
           </div>
@@ -660,14 +706,26 @@ export default function AdminSessionsPage() {
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="session-date">날짜</Label>
-                <Input
-                  id="session-date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="session-date">날짜</Label>
+                  <Input
+                    id="session-date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="session-deadline">마감 시간 (선택)</Label>
+                  <Input
+                    id="session-deadline"
+                    type="time"
+                    value={deadlineTime}
+                    onChange={(e) => setDeadlineTime(e.target.value)}
+                    placeholder="예: 11:30"
+                  />
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label>매장 선택</Label>

@@ -81,6 +81,7 @@ model OrderSession {
   id              String               @id @default(cuid())
   title           String
   date            DateTime
+  deadlineTime    String?              // "HH:mm" 형식의 마감 시간 (선택)
   status          SessionStatus        @default(OPEN)
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
