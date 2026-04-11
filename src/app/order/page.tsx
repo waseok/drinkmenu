@@ -50,7 +50,7 @@ export default function OrderPage() {
         const data: Session[] = await res.json();
         setSessions(data.filter((s) => s.status === "OPEN"));
       } catch {
-        toast.error("주문 세션을 불러오는데 실패했습니다.");
+        toast.error("음료 취합 목록을 불러오는데 실패했습니다.");
       } finally {
         setLoading(false);
       }
@@ -80,7 +80,7 @@ export default function OrderPage() {
             음료 주문
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            진행 중인 주문 세션을 선택하세요
+            진행 중인 음료 취합을 선택하세요
           </p>
         </div>
 
@@ -91,7 +91,7 @@ export default function OrderPage() {
               현재 진행 중인 주문이 없습니다
             </p>
             <p className="mt-1 text-sm text-muted-foreground/70">
-              관리자가 새로운 주문 세션을 열면 여기에 표시됩니다.
+              관리자가 음료 취합을 시작하면 여기에 표시됩니다.
             </p>
             <Link href="/" className="mt-6">
               <Button variant="outline">홈으로 돌아가기</Button>

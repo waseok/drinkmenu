@@ -31,6 +31,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -99,12 +100,13 @@ interface OrderItem {
   id: string;
   sessionId: string;
   staffId: string;
-  menuItemId: string;
+  menuItemId: string | null;
+  customItemName?: string | null;
   quantity: number;
   options: string;
   price: number;
   staff: Staff;
-  menuItem: MenuItem & { shop: { id: string; name: string } };
+  menuItem: (MenuItem & { shop: { id: string; name: string } }) | null;
 }
 
 interface Session {
@@ -225,6 +227,8 @@ export default function OrderPage({
   const [manualName, setManualName] = useState("");
   const [manualDepartment, setManualDepartment] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [customOrders, setCustomOrders] = useState<{ id: string; text: string }[]>([]);
+  const [customOrderInput, setCustomOrderInput] = useState("");
   const [existingOrders, setExistingOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -406,6 +410,8 @@ export default function OrderPage({
     }
     setSelectedStaff(null);
     setCart([]);
+    setCustomOrders([]);
+    setCustomOrderInput("");
     setExistingOrders([]);
     setSearchQuery("");
     setManualName("");
@@ -510,12 +516,12 @@ export default function OrderPage({
   }, []);
 
   const handleSubmitOrder = useCallback(async () => {
-    if (!selectedStaff || cart.length === 0) return;
+    if (!selectedStaff || (cart.length === 0 && customOrders.length === 0)) return;
     setSubmitting(true);
     try {
       const isManual = Boolean(selectedStaff.isManual);
-      const results = await Promise.all(
-        cart.map((item) =>
+      const results = await Promise.all([
+        ...cart.map((item) =>
           fetch("/api/orders", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -531,7 +537,23 @@ export default function OrderPage({
             }),
           }),
         ),
-      );
+        ...customOrders.map((item) =>
+          fetch("/api/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId,
+              staffId: isManual ? undefined : selectedStaff.id,
+              staffName: selectedStaff.name,
+              staffDepartment: selectedStaff.department,
+              customItemName: item.text,
+              quantity: 1,
+              options: "",
+              price: 0,
+            }),
+          }),
+        ),
+      ]);
 
       if (!results.every((r) => r.ok)) {
         toast.error("일부 주문이 실패했습니다. 다시 시도해주세요.");
@@ -548,6 +570,8 @@ export default function OrderPage({
       toast.success("주문이 완료되었습니다!");
       setCompletedOrdersOpen(false);
       setCart([]);
+      setCustomOrders([]);
+      setCustomOrderInput("");
       await fetchExistingOrders(resolvedStaff?.id ?? (isManual ? null : selectedStaff.id));
       void refreshSessionOrders();
       setStep(3);
@@ -1301,6 +1325,65 @@ export default function OrderPage({
             )}
 
             {/* ─── Cart section ─────────────────────────────────────── */}
+            {/* ─── 직접 주문 입력 섹션 ──────────────────────────────── */}
+            <Separator />
+            <div>
+              <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+                <PlusIcon className="size-4" />
+                직접 입력
+                <span className="text-xs font-normal text-muted-foreground">
+                  (등록 메뉴 외 주문)
+                </span>
+              </h3>
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="예: 아이스아메리카노 1잔, 카페라떼 1잔"
+                  value={customOrderInput}
+                  onChange={(e) => setCustomOrderInput(e.target.value)}
+                  className="min-h-[60px] flex-1 resize-none text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-end"
+                  onClick={() => {
+                    const text = customOrderInput.trim();
+                    if (!text) return;
+                    setCustomOrders((prev) => [
+                      ...prev,
+                      { id: `custom-${Date.now()}`, text },
+                    ]);
+                    setCustomOrderInput("");
+                  }}
+                >
+                  추가
+                </Button>
+              </div>
+              {customOrders.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {customOrders.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm"
+                    >
+                      <span className="flex-1">{item.text}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() =>
+                          setCustomOrders((prev) =>
+                            prev.filter((o) => o.id !== item.id)
+                          )
+                        }
+                      >
+                        <XIcon className="size-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {cart.length > 0 && (
               <>
                 <Separator />
@@ -1510,13 +1593,13 @@ export default function OrderPage({
                           >
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium">
-                                {order.menuItem.name}
+                                {order.menuItem?.name ?? order.customItemName ?? "직접 입력"}
                                 <span className="ml-1 text-muted-foreground">
                                   ×{order.quantity}
                                 </span>
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {order.menuItem.shop.name}
+                                {order.menuItem?.shop?.name ?? "직접 입력"}
                                 {order.options && ` · ${order.options}`}
                               </p>
                             </div>
@@ -1600,12 +1683,12 @@ export default function OrderPage({
       </main>
 
       {/* ── Sticky bottom bar (cart summary) ───────────────────────────── */}
-      {step === 2 && cart.length > 0 && (
+      {step === 2 && (cart.length > 0 || customOrders.length > 0) && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
             <div>
               <p className="text-xs text-muted-foreground">
-                {cartCount}개 선택
+                {cartCount + customOrders.length}개 선택
               </p>
               <p className="text-base font-bold">{formatPrice(cartTotal)}</p>
             </div>

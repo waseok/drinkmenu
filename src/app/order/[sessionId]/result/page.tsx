@@ -51,13 +51,14 @@ interface Order {
   id: string;
   sessionId: string;
   staffId: string;
-  menuItemId: string;
+  menuItemId: string | null;
+  customItemName: string | null;
   quantity: number;
   options: string;
   price: number;
   createdAt: string;
   staff: Staff;
-  menuItem: MenuItem;
+  menuItem: MenuItem | null;
 }
 
 interface SessionTargetRow {
@@ -134,7 +135,7 @@ export default function ResultPage({
   }, [fetchData]);
 
   const shopGroups = orders.reduce<Record<string, Order[]>>((acc, order) => {
-    const shopName = order.menuItem.shop.name;
+    const shopName = order.menuItem?.shop.name ?? "직접 입력";
     if (!acc[shopName]) acc[shopName] = [];
     acc[shopName].push(order);
     return acc;
@@ -144,7 +145,7 @@ export default function ResultPage({
     ([shopName, shopOrders]) => ({
       shopName,
       orders: shopOrders,
-      phone: shopOrders[0]?.menuItem.shop.phone || "",
+      phone: shopOrders[0]?.menuItem?.shop.phone || "",
       subtotal: shopOrders.reduce((sum, o) => sum + o.price * o.quantity, 0),
       count: shopOrders.reduce((sum, o) => sum + o.quantity, 0),
     })
@@ -237,7 +238,7 @@ export default function ResultPage({
       "─".repeat(40),
       ...orders.map(
         (o, i) =>
-          `${i + 1}. ${o.staff.department} ${o.staff.name} | ${o.menuItem.shop.name} - ${o.menuItem.name}${o.quantity > 1 ? ` x${o.quantity}` : ""}${o.options ? ` (${o.options})` : ""} | ${formatPrice(o.price * o.quantity)}`
+          `${i + 1}. ${o.staff.department} ${o.staff.name} | ${o.menuItem?.shop.name ?? "직접 입력"} - ${o.menuItem?.name ?? o.customItemName ?? "직접 입력"}${o.quantity > 1 ? ` x${o.quantity}` : ""}${o.options ? ` (${o.options})` : ""} | ${formatPrice(o.price * o.quantity)}`
       ),
       "─".repeat(40),
       "",
@@ -288,7 +289,8 @@ export default function ResultPage({
       >();
 
       for (const order of group.orders) {
-        const key = `${order.menuItem.name}__${order.options || ""}`;
+        const menuName = order.menuItem?.name ?? order.customItemName ?? "직접 입력";
+        const key = `${menuName}__${order.options || ""}`;
         const existing = aggregated.get(key);
         const customerLabel = `${order.staff.department} ${order.staff.name}${
           order.quantity > 1 ? ` x${order.quantity}` : ""
@@ -299,7 +301,7 @@ export default function ResultPage({
           existing.customers.push(customerLabel);
         } else {
           aggregated.set(key, {
-            menuName: order.menuItem.name,
+            menuName,
             options: order.options || "",
             quantity: order.quantity,
             customers: [customerLabel],
@@ -505,12 +507,12 @@ export default function ResultPage({
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className={shopColorMap[order.menuItem.shop.name]}
+                            className={shopColorMap[order.menuItem?.shop.name ?? "직접 입력"]}
                           >
-                            {order.menuItem.shop.name}
+                            {order.menuItem?.shop.name ?? "직접 입력"}
                           </Badge>
                         </TableCell>
-                        <TableCell>{order.menuItem.name}</TableCell>
+                        <TableCell>{order.menuItem?.name ?? order.customItemName ?? "직접 입력"}</TableCell>
                         <TableCell className="text-center">
                           {order.quantity}
                         </TableCell>
@@ -616,7 +618,7 @@ export default function ResultPage({
                                 {order.staff.name}
                               </TableCell>
                               <TableCell>{order.staff.department}</TableCell>
-                              <TableCell>{order.menuItem.name}</TableCell>
+                              <TableCell>{order.menuItem?.name ?? order.customItemName ?? "직접 입력"}</TableCell>
                               <TableCell className="text-center">
                                 {order.quantity}
                               </TableCell>

@@ -3,10 +3,10 @@ import { Coffee } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 
 const navLinks = [
-  { href: "/admin", label: "대시보드" },
-  { href: "/admin/staff", label: "교직원" },
-  { href: "/admin/shops", label: "업체/메뉴" },
-  { href: "/admin/sessions", label: "주문세션" },
+  { href: "/admin", label: "주문 현황" },
+  { href: "/admin/staff", label: "교직원 관리" },
+  { href: "/admin/shops", label: "음료 업체" },
+  { href: "/admin/sessions", label: "음료 취합 만들기" },
 ];
 
 const quickExitLinks = [
