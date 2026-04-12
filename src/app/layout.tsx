@@ -1,16 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const gmarketSans = localFont({
+  src: [
+    {
+      path: "../fonts/GmarketSansLight.otf",
+      weight: "300",
+      style: "normal",
+    },
+    {
+      path: "../fonts/GmarketSansMedium.otf",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../fonts/GmarketSansBold.otf",
+      weight: "700",
+      style: "normal",
+    },
+  ],
+  variable: "--font-gmarket",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +38,7 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${gmarketSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}

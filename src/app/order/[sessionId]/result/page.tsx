@@ -386,10 +386,10 @@ export default function ResultPage({
 
       <div className="mx-auto max-w-5xl px-4 py-8">
         {/* Header & Action Buttons */}
-        <div className="no-print mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="no-print mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">{session.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h1 className="text-3xl font-bold sm:text-4xl">{session.title}</h1>
+            <p className="mt-2 text-base font-light text-muted-foreground">
               {formatDateKorean(session.date)}
               <Badge variant="secondary" className="ml-2">
                 {session.status === "OPEN" ? "진행중" : "마감"}
@@ -573,8 +573,8 @@ export default function ResultPage({
               </Card>
 
               {/* Per-shop breakdown */}
-              <div className="mt-6 space-y-4">
-                <h3 className="text-lg font-semibold">업체별 주문 내역</h3>
+              <div className="mt-8 space-y-5">
+                <h3 className="text-2xl font-bold">업체별 주문 내역</h3>
                 {shopSubtotals.map((group) => (
                   <Card key={group.shopName} className={`border-l-4 ${shopColorMap[group.shopName]?.includes("blue") ? "border-l-blue-400" : shopColorMap[group.shopName]?.includes("emerald") ? "border-l-emerald-400" : shopColorMap[group.shopName]?.includes("violet") ? "border-l-violet-400" : shopColorMap[group.shopName]?.includes("orange") ? "border-l-orange-400" : shopColorMap[group.shopName]?.includes("rose") ? "border-l-rose-400" : "border-l-cyan-400"}`}>
                     <CardHeader>

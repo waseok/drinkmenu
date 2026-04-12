@@ -627,52 +627,52 @@ export default function AdminSessionsPage() {
 
   return (
     <div className="page-shell max-w-6xl">
-      <div className="page-hero mb-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="page-hero mb-10">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-violet-700 dark:text-violet-300">
+            <p className="text-base font-bold text-violet-700 dark:text-violet-300">
               Sessions
             </p>
-            <h1 className="mt-2 text-3xl font-bold">주문 세션 관리</h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            <h1 className="mt-3 text-4xl font-bold sm:text-5xl">주문 세션 관리</h1>
+            <p className="mt-3 text-lg font-light leading-7 text-muted-foreground">
               주문 링크를 만들고 마감 상태와 결과를 한 번에 관리합니다.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border bg-background/80 px-4 py-3 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-[1.5rem] border border-amber-100/60 bg-gradient-to-br from-background/80 to-amber-50/30 px-5 py-4 text-center">
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Total
               </p>
-              <p className="mt-2 text-lg font-semibold">{sessions.length}</p>
+              <p className="mt-2 text-2xl font-bold">{sessions.length}</p>
             </div>
-            <div className="rounded-2xl border bg-background/80 px-4 py-3 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="rounded-[1.5rem] border border-amber-100/60 bg-gradient-to-br from-background/80 to-amber-50/30 px-5 py-4 text-center">
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Open
               </p>
-              <p className="mt-2 text-lg font-semibold">{openSessions.length}</p>
+              <p className="mt-2 text-2xl font-bold">{openSessions.length}</p>
             </div>
-            <div className="rounded-2xl border bg-background/80 px-4 py-3 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="rounded-[1.5rem] border border-amber-100/60 bg-gradient-to-br from-background/80 to-amber-50/30 px-5 py-4 text-center">
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Closed
               </p>
-              <p className="mt-2 text-lg font-semibold">
+              <p className="mt-2 text-2xl font-bold">
                 {closedSessions.length}
               </p>
             </div>
-            <div className="rounded-2xl border bg-background/80 px-4 py-3 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="rounded-[1.5rem] border border-amber-100/60 bg-gradient-to-br from-background/80 to-amber-50/30 px-5 py-4 text-center">
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Orders
               </p>
-              <p className="mt-2 text-lg font-semibold">{totalOrders}</p>
+              <p className="mt-2 text-2xl font-bold">{totalOrders}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-10 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">세션 목록</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className="text-2xl font-bold">세션 목록</h2>
+          <p className="mt-2 text-base font-light text-muted-foreground">
             주문 링크 공유, 결과 확인, 마감 처리를 빠르게 할 수 있습니다.
           </p>
         </div>
@@ -954,10 +954,10 @@ export default function AdminSessionsPage() {
         </div>
       ) : (
         <div className="grid gap-8">
-          <section className="grid gap-5">
+          <section className="grid gap-6">
             <div>
-              <h2 className="text-xl font-semibold">진행 중인 세션</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <h2 className="text-2xl font-bold">진행 중인 세션</h2>
+              <p className="mt-2 text-base font-light text-muted-foreground">
                 현재 주문 가능한 세션입니다.
               </p>
             </div>
@@ -970,10 +970,10 @@ export default function AdminSessionsPage() {
             )}
           </section>
 
-          <section className="grid gap-5">
+          <section className="grid gap-6">
             <div>
-              <h2 className="text-xl font-semibold">완료된 세션</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <h2 className="text-2xl font-bold">완료된 세션</h2>
+              <p className="mt-2 text-base font-light text-muted-foreground">
                 마감된 주문 세션은 이 목록으로 이동합니다.
               </p>
             </div>

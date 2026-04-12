@@ -802,12 +802,12 @@ export default function OrderPage({
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50/50 via-background to-background pb-32">
       {/* ── Sticky header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto max-w-3xl px-4 py-3">
+      <header className="sticky top-0 z-20 border-b border-amber-100/60 bg-white/90 backdrop-blur-xl supports-[backdrop-filter]:bg-white/80">
+        <div className="mx-auto max-w-3xl px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-base font-semibold">{session.title}</h1>
-              <p className="text-xs text-muted-foreground">
+              <h1 className="text-lg font-bold">{session.title}</h1>
+              <p className="text-sm font-light text-muted-foreground">
                 {formatDate(session.date)}
                 {session.deadlineTime && (
                   <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
@@ -911,8 +911,8 @@ export default function OrderPage({
         {/* STEP 1 : Select name                                          */}
         {/* ============================================================= */}
         {step === 1 && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+          <div className="space-y-5">
+            <p className="text-base font-light text-muted-foreground">
               {session.sessionTargets && session.sessionTargets.length > 0
                 ? "이번 세션의 주문 대상만 표시됩니다. 이름을 선택하거나 직접 입력해주세요."
                 : "이름을 선택하거나 직접 입력해주세요."}
@@ -1550,14 +1550,14 @@ export default function OrderPage({
         {step === 3 && selectedStaff && (
           <div className="space-y-6">
             {/* Success banner */}
-            <Card className="border-0 bg-gradient-to-br from-emerald-50 to-white shadow-md dark:from-emerald-950/30 dark:to-background">
-              <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
-                <CheckCircle2Icon className="size-8 text-emerald-600 dark:text-emerald-400" />
+            <Card className="border-0 bg-gradient-to-br from-emerald-50 via-white to-amber-50/20 shadow-lg dark:from-emerald-950/30 dark:to-background rounded-[2rem]">
+              <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+              <div className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-800/20">
+                <CheckCircle2Icon className="size-10 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">주문이 완료되었습니다</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <h2 className="text-2xl font-bold">주문이 완료되었습니다</h2>
+                <p className="mt-2 text-base font-light text-muted-foreground">
                   {selectedStaff.name}님의 주문이 정상 접수되었습니다.
                 </p>
               </div>

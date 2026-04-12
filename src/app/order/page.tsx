@@ -70,27 +70,27 @@ export default function OrderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50/50 to-white px-4 py-8 dark:from-zinc-950 dark:to-zinc-900">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50/40 via-orange-50/20 to-white px-5 py-10 dark:from-zinc-950 dark:to-zinc-900">
       <div className="mx-auto max-w-2xl">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900/30">
-            <ShoppingBag className="size-7 text-blue-700 dark:text-blue-400" />
+        <div className="mb-10 text-center">
+          <div className="mx-auto mb-5 flex size-16 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-amber-100 to-orange-100 dark:from-blue-900/30 dark:to-blue-800/20">
+            <ShoppingBag className="size-8 text-amber-700 dark:text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 sm:text-4xl">
             음료 주문
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-2 text-lg font-light text-muted-foreground">
             진행 중인 음료 취합을 선택하세요
           </p>
         </div>
 
         {sessions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20">
-            <Coffee className="mb-4 size-12 text-muted-foreground/40" />
-            <p className="font-medium text-muted-foreground">
+          <div className="flex flex-col items-center justify-center rounded-[2rem] border border-dashed border-amber-200/60 bg-amber-50/20 py-20">
+            <Coffee className="mb-5 size-14 text-muted-foreground/40" />
+            <p className="text-lg font-medium text-muted-foreground">
               현재 진행 중인 주문이 없습니다
             </p>
-            <p className="mt-1 text-sm text-muted-foreground/70">
+            <p className="mt-2 text-base font-light text-muted-foreground/70">
               관리자가 음료 취합을 시작하면 여기에 표시됩니다.
             </p>
             <Link href="/" className="mt-6">
@@ -98,25 +98,25 @@ export default function OrderPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-5">
             {sessions.map((session) => (
               <Link key={session.id} href={`/order/${session.id}`}>
-                <Card className="transition-shadow hover:shadow-lg">
+                <Card className="rounded-[1.5rem] border-amber-100/50 bg-gradient-to-br from-card/95 to-amber-50/20 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_-24px_rgba(217,119,6,0.25)]">
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">
+                      <CardTitle className="text-xl font-bold">
                         {session.title}
                       </CardTitle>
-                      <Badge variant="default">진행중</Badge>
+                      <Badge variant="default" className="rounded-full px-3 py-1 text-sm font-medium">진행중</Badge>
                     </div>
-                    <CardDescription className="flex items-center gap-1.5">
-                      <CalendarIcon className="size-3.5" />
+                    <CardDescription className="flex items-center gap-2 text-base font-light">
+                      <CalendarIcon className="size-4" />
                       {formatDateKorean(session.date)}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Store className="size-3.5" />
+                    <div className="flex items-center gap-2 text-base font-light text-muted-foreground">
+                      <Store className="size-4" />
                       <span>
                         {session.sessionShops.length > 0
                           ? session.sessionShops
