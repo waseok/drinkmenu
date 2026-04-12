@@ -21,9 +21,9 @@ export default function Home() {
       <div className="page-shell relative flex min-h-screen items-center justify-center py-12">
         <div className="flex w-full max-w-5xl flex-col gap-10 lg:flex-row lg:items-stretch">
           {/* Hero section */}
-          <section className="page-hero flex-1 animate-slide-up">
-            <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-100/90 to-orange-100/70 px-4 py-1.5 text-base font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-              <Coffee className="size-5" />
+          <section className="page-hero flex-1 animate-slide-up text-left">
+            <div className="inline-flex items-center gap-2 self-start rounded-full bg-gradient-to-r from-amber-100/90 to-orange-100/70 px-4 py-1.5 text-base font-bold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+              <Coffee className="size-5 shrink-0" />
               와석초등학교 교직원 전용
             </div>
             <div className="mt-8 space-y-5">
@@ -33,43 +33,43 @@ export default function Home() {
               <h1 className="text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-6xl">
                 와석초 음료 주문
               </h1>
-              <p className="max-w-2xl text-lg font-light leading-8 text-zinc-600 dark:text-zinc-400 sm:text-xl">
-                주문 링크 공유부터 메뉴 수집, 업체별 주문 요약까지 한 번에
-                정리하는 교직원 음료 주문 취합 시스템입니다.
+              <p className="max-w-xl text-base font-light leading-relaxed text-zinc-600 sm:text-lg dark:text-zinc-400">
+                링크 공유·메뉴 수집·업체별 요약까지 한 번에 정리하는 교직원 음료
+                주문 취합 시스템입니다.
               </p>
             </div>
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-[1.5rem] border border-blue-100/60 bg-gradient-to-br from-background/80 to-blue-50/30 p-5">
+              <div className="min-h-[5.5rem] rounded-[1.5rem] border border-blue-100/60 bg-gradient-to-br from-background/80 to-blue-50/30 p-5">
                 <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30">
                   <ClipboardList className="size-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
                   주문
                 </p>
-                <p className="mt-1.5 text-base font-light text-muted-foreground">
-                  진행 중인 세션에서 바로 음료 선택
+                <p className="mt-1.5 text-sm font-light leading-snug text-muted-foreground sm:text-base">
+                  진행 세션에서 바로 음료를 고릅니다.
                 </p>
               </div>
-              <div className="rounded-[1.5rem] border border-emerald-100/60 bg-gradient-to-br from-background/80 to-emerald-50/30 p-5">
+              <div className="min-h-[5.5rem] rounded-[1.5rem] border border-emerald-100/60 bg-gradient-to-br from-background/80 to-emerald-50/30 p-5">
                 <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
                   <LayoutDashboard className="size-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
                   관리
                 </p>
-                <p className="mt-1.5 text-base font-light text-muted-foreground">
-                  교직원, 업체, 메뉴, 세션을 한 화면에서 관리
+                <p className="mt-1.5 text-sm font-light leading-snug text-muted-foreground sm:text-base">
+                  교직원·업체·메뉴·세션을 한 화면에서 다룹니다.
                 </p>
               </div>
-              <div className="rounded-[1.5rem] border border-violet-100/60 bg-gradient-to-br from-background/80 to-violet-50/30 p-5">
+              <div className="min-h-[5.5rem] rounded-[1.5rem] border border-violet-100/60 bg-gradient-to-br from-background/80 to-violet-50/30 p-5">
                 <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/30">
                   <FileText className="size-5 text-violet-600 dark:text-violet-400" />
                 </div>
                 <p className="text-sm font-bold uppercase tracking-[0.18em] text-muted-foreground">
                   정리
                 </p>
-                <p className="mt-1.5 text-base font-light text-muted-foreground">
-                  전화 주문용 요약과 결과 화면 제공
+                <p className="mt-1.5 text-sm font-light leading-snug text-muted-foreground sm:text-base">
+                  전화 주문용 요약과 결과 화면을 제공합니다.
                 </p>
               </div>
             </div>
@@ -84,8 +84,8 @@ export default function Home() {
                     <ShoppingBag className="size-8 text-amber-700 dark:text-amber-400" />
                   </div>
                   <CardTitle className="text-3xl font-bold">주문하기</CardTitle>
-                  <CardDescription className="text-base font-light leading-7">
-                    진행 중인 음료 취합에 참여해 음료를 선택하고 주문합니다.
+                  <CardDescription className="text-base font-light leading-relaxed">
+                    진행 중인 취합에 참여해 음료를 고르고 주문합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -103,8 +103,8 @@ export default function Home() {
                     <Settings className="size-8 text-zinc-700 dark:text-zinc-400" />
                   </div>
                   <CardTitle className="text-3xl font-bold">관리자</CardTitle>
-                  <CardDescription className="text-base font-light leading-7">
-                    교직원, 음료 업체, 메뉴, 취합 세션을 관리하고 결과를 정리합니다.
+                  <CardDescription className="text-base font-light leading-relaxed">
+                    교직원·업체·메뉴·취합 세션을 관리하고 결과를 정리합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">

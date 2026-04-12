@@ -40,19 +40,19 @@ export default function AdminDashboard() {
   return (
     <div className="page-shell max-w-6xl">
       <div className="page-hero mb-10">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+          <div className="min-w-0 w-full lg:max-w-2xl lg:flex-1">
             <p className="text-base font-bold text-amber-700 dark:text-amber-300">
               Dashboard
             </p>
             <h1 className="mt-3 text-4xl font-bold text-zinc-900 dark:text-zinc-50 sm:text-5xl">
               관리자 대시보드
             </h1>
-            <p className="mt-3 text-lg font-light leading-7 text-muted-foreground">
-              교직원, 업체, 주문 세션을 빠르게 관리할 수 있는 운영 화면입니다.
+            <p className="mt-3 max-w-2xl text-base font-light leading-relaxed text-muted-foreground sm:text-lg">
+              교직원·업체·주문 세션을 빠르게 다루는 운영 화면입니다.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid w-full shrink-0 grid-cols-3 gap-4 lg:w-auto lg:max-w-md">
             <div className="rounded-[1.5rem] border border-amber-100/60 bg-gradient-to-br from-background/80 to-amber-50/30 px-5 py-4 text-center">
               <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Staff
@@ -90,7 +90,7 @@ export default function AdminDashboard() {
                   <Icon className="size-6" />
                 </div>
                 <CardTitle className="text-2xl font-bold">{section.title}</CardTitle>
-                <CardDescription className="text-base font-light leading-7">
+                <CardDescription className="text-base font-light leading-relaxed">
                   {section.description}
                 </CardDescription>
               </CardHeader>

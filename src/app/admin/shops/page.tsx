@@ -766,8 +766,8 @@ export default function AdminShopsPage() {
       <div className="page-hero mb-10">
         <p className="text-base font-bold text-amber-700">Admin</p>
         <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">업체 &amp; 메뉴 관리</h1>
-        <p className="mt-3 text-lg font-light text-muted-foreground">
-          네이버 메뉴를 가져오고, 메뉴 사진과 함께 더 보기 좋게 관리할 수 있습니다.
+        <p className="mt-3 max-w-2xl text-base font-light leading-relaxed text-muted-foreground sm:text-lg">
+          네이버에서 메뉴를 가져오고, 메뉴 사진과 함께 관리합니다.
         </p>
       </div>
 

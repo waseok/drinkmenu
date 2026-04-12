@@ -137,6 +137,8 @@
 
   html {
     @apply font-sans;
+    /* 한국어: 어절 단위로 줄바꿈 (단어 중간 글자 단위 줄바꿈 완화) */
+    word-break: keep-all;
   }
 
   h1 {
@@ -187,7 +189,7 @@
   }
 
   .page-hero {
-    @apply relative overflow-hidden rounded-[2rem] border border-amber-100/80 bg-gradient-to-br from-white/90 via-amber-50/40 to-orange-50/30 p-8 shadow-[0_24px_80px_-30px_rgba(217,119,6,0.18)] backdrop-blur-xl dark:border-amber-800/20 dark:bg-zinc-950/70;
+    @apply relative overflow-hidden rounded-[2rem] border border-amber-100/80 bg-gradient-to-br from-white/90 via-amber-50/40 to-orange-50/30 p-8 text-left shadow-[0_24px_80px_-30px_rgba(217,119,6,0.18)] backdrop-blur-xl dark:border-amber-800/20 dark:bg-zinc-950/70;
   }
 
   .page-hero::after {

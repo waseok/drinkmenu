@@ -628,17 +628,18 @@ export default function AdminSessionsPage() {
   return (
     <div className="page-shell max-w-6xl">
       <div className="page-hero mb-10">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+          {/* 통계 카드 옆에서 문장 폭이 너무 좁아지면 한글 이음줄이 깨지므로 최소 폭·줄 단위 확보 */}
+          <div className="min-w-0 w-full lg:max-w-2xl lg:flex-1">
             <p className="text-base font-bold text-violet-700 dark:text-violet-300">
               Sessions
             </p>
             <h1 className="mt-3 text-4xl font-bold sm:text-5xl">주문 세션 관리</h1>
-            <p className="mt-3 text-lg font-light leading-7 text-muted-foreground">
-              주문 링크를 만들고 마감 상태와 결과를 한 번에 관리합니다.
+            <p className="mt-3 text-base font-light leading-relaxed text-muted-foreground sm:text-lg">
+              주문 링크·마감·결과까지 한곳에서 관리합니다.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid w-full shrink-0 grid-cols-2 gap-4 sm:grid-cols-4 lg:w-auto lg:max-w-md">
             <div className="rounded-[1.5rem] border border-amber-100/60 bg-gradient-to-br from-background/80 to-amber-50/30 px-5 py-4 text-center">
               <p className="text-sm font-bold uppercase tracking-[0.16em] text-muted-foreground">
                 Total
@@ -672,8 +673,8 @@ export default function AdminSessionsPage() {
       <div className="mb-10 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">세션 목록</h2>
-          <p className="mt-2 text-base font-light text-muted-foreground">
-            주문 링크 공유, 결과 확인, 마감 처리를 빠르게 할 수 있습니다.
+          <p className="mt-2 max-w-2xl text-base font-light leading-relaxed text-muted-foreground">
+            링크 공유·결과 확인·마감까지 빠르게 처리합니다.
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
