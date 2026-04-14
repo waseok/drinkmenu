@@ -774,6 +774,7 @@ export default function OrderPage({
     () => (session?.pickerGroups ?? []).map((g) => g.name),
     [session?.pickerGroups],
   );
+  const targetStaffCount = session?.sessionTargets?.length ?? 0;
 
   /** 이번 세션에서 한 건이라도 주문한 교직원 id (이름 선택 단계에서 음영 표시) */
   const staffIdsWithOrders = useMemo(() => {
@@ -1043,12 +1044,23 @@ export default function OrderPage({
                 ? "이번 세션의 주문 대상만 표시됩니다. 이름을 선택하거나 직접 입력해주세요."
                 : "이름을 선택하거나 직접 입력해주세요."}
             </p>
-            {targetGroupNames.length > 0 && (
+            {targetStaffCount > 0 && (
               <p className="text-sm text-muted-foreground">
-                대상자 그룹:{" "}
-                <span className="font-medium text-foreground">
-                  {targetGroupNames.join(", ")}
-                </span>
+                {targetGroupNames.length > 0 ? (
+                  <>
+                    대상자 그룹:{" "}
+                    <span className="font-medium text-foreground">
+                      {targetGroupNames.join(", ")}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    대상자 지정:{" "}
+                    <span className="font-medium text-foreground">
+                      {targetStaffCount}명 (개별 지정)
+                    </span>
+                  </>
+                )}
               </p>
             )}
 
