@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CalendarIcon, Coffee, ShoppingBag, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ function formatDateKorean(dateStr: string) {
 }
 
 export default function OrderPage() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -106,7 +108,13 @@ export default function OrderPage() {
         ) : (
           <div className="grid gap-5">
             {sessions.map((session) => (
-              <Link key={session.id} href={`/order/${session.id}`}>
+              <Link
+                key={session.id}
+                href={`/order/${session.id}`}
+                onMouseEnter={() => {
+                  router.prefetch(`/order/${session.id}`);
+                }}
+              >
                 <Card className="rounded-[1.5rem] border-amber-100/50 bg-gradient-to-br from-card/95 to-amber-50/20 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_-24px_rgba(217,119,6,0.25)]">
                   <CardHeader>
                     <div className="flex items-center justify-between">

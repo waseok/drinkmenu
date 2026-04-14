@@ -4,25 +4,31 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const { sessionId } = await params;
+    const { searchParams } = new URL(request.url);
+    const includeOrders = searchParams.get("includeOrders") !== "false";
 
     const [session, staffGroups] = await Promise.all([
       prisma.orderSession.findUnique({
         where: { id: sessionId },
         include: {
-          orders: {
-            include: {
-              staff: true,
-              menuItem: {
-                include: { shop: true },
-              },
-            },
-            orderBy: { createdAt: "desc" },
-          },
+          ...(includeOrders
+            ? {
+                orders: {
+                  include: {
+                    staff: true,
+                    menuItem: {
+                      include: { shop: true },
+                    },
+                  },
+                  orderBy: { createdAt: "desc" as const },
+                },
+              }
+            : {}),
           sessionShops: {
             include: {
               shop: {

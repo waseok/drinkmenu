@@ -8,11 +8,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
     const staffId = searchParams.get("staffId");
+    const summary = searchParams.get("summary");
     const limitParam = searchParams.get("limit");
     const limit = Math.min(Math.max(Number(limitParam || "8"), 1), 20);
 
     // 세션별 주문 목록 조회 (기존 기능)
     if (sessionId) {
+      // 이름 선택 단계 "주문함" 표시용 경량 조회
+      if (summary === "staffIds") {
+        const rows = await prisma.order.findMany({
+          where: { sessionId },
+          select: { staffId: true },
+          distinct: ["staffId"],
+        });
+        return NextResponse.json({ staffIds: rows.map((r) => r.staffId) });
+      }
+
       const orders = await prisma.order.findMany({
         where: { sessionId },
         include: {

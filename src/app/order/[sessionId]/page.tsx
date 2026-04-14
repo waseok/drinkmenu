@@ -122,7 +122,7 @@ interface Session {
   deadlineTime?: string | null;
   status: "OPEN" | "CLOSED";
   sessionShops: SessionShop[];
-  orders: OrderItem[];
+  orders?: OrderItem[];
   sessionTargets?: SessionTargetRow[];
   pickerGroups?: PickerGroup[];
 }
@@ -259,6 +259,7 @@ export default function OrderPage({
   const [error, setError] = useState<string | null>(null);
   const [activeShopIdx, setActiveShopIdx] = useState(0);
   const [completedOrdersOpen, setCompletedOrdersOpen] = useState(false);
+  const [orderedStaffIds, setOrderedStaffIds] = useState<string[]>([]);
   const [staffHistoryMap, setStaffHistoryMap] = useState<
     Record<string, StaffHistoryOrder[]>
   >({});
@@ -293,20 +294,23 @@ export default function OrderPage({
   }, [menuLightbox]);
 
   /** 세션 전체 주문 목록만 다시 받아 이름 선택 화면의 '주문함' 표시를 최신으로 유지 */
-  const refreshSessionOrders = useCallback(async () => {
+  const fetchOrderedStaffIds = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const data: Session = await res.json();
-      setSession((prev) =>
-        prev ? { ...prev, orders: data.orders } : prev,
+      const res = await fetch(
+        `/api/orders?sessionId=${encodeURIComponent(sessionId)}&summary=staffIds`,
+        { cache: "no-store" },
       );
+      if (!res.ok) return;
+      const data = (await res.json()) as { staffIds?: string[] };
+      setOrderedStaffIds(Array.isArray(data.staffIds) ? data.staffIds : []);
     } catch {
       /* 무시: 보조 갱신 */
     }
   }, [sessionId]);
+
+  const refreshSessionOrders = useCallback(async () => {
+    void fetchOrderedStaffIds();
+  }, [fetchOrderedStaffIds]);
 
   // -- data fetching --------------------------------------------------------
 
@@ -314,9 +318,15 @@ export default function OrderPage({
     let cancelled = false;
     async function fetchData() {
       try {
-        const [sessionRes, staffRes] = await Promise.all([
-          fetch(`/api/sessions/${sessionId}`, { cache: "no-store" }),
+        const [sessionRes, staffRes, orderedIdsRes] = await Promise.all([
+          fetch(`/api/sessions/${sessionId}?includeOrders=false`, {
+            cache: "no-store",
+          }),
           fetch("/api/staff", { cache: "no-store" }),
+          fetch(
+            `/api/orders?sessionId=${encodeURIComponent(sessionId)}&summary=staffIds`,
+            { cache: "no-store" },
+          ),
         ]);
 
         if (cancelled) return;
@@ -330,6 +340,16 @@ export default function OrderPage({
 
         const sessionData: Session = await sessionRes.json();
         const staffData: Staff[] = await staffRes.json();
+        if (orderedIdsRes.ok) {
+          const orderedData = (await orderedIdsRes.json()) as {
+            staffIds?: string[];
+          };
+          setOrderedStaffIds(
+            Array.isArray(orderedData.staffIds) ? orderedData.staffIds : [],
+          );
+        } else {
+          setOrderedStaffIds([]);
+        }
 
         if (sessionData.status === "CLOSED") {
           setError("마감된 주문입니다. 더 이상 주문할 수 없습니다.");
@@ -778,12 +798,8 @@ export default function OrderPage({
 
   /** 이번 세션에서 한 건이라도 주문한 교직원 id (이름 선택 단계에서 음영 표시) */
   const staffIdsWithOrders = useMemo(() => {
-    const ids = new Set<string>();
-    for (const o of session?.orders ?? []) {
-      if (o.staffId) ids.add(o.staffId);
-    }
-    return ids;
-  }, [session?.orders]);
+    return new Set(orderedStaffIds);
+  }, [orderedStaffIds]);
 
   // -- early returns --------------------------------------------------------
 
