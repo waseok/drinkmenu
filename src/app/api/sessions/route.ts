@@ -22,8 +22,9 @@ function getTargetGroupNames(
   const targetIds = new Set(targets.map((t) => t.staffId));
   return staffGroups
     .map((g) => {
-      const matchedCount = g.members.filter((m) => targetIds.has(m.staffId)).length;
-      return matchedCount > 0 ? g.name : null;
+      if (g.members.length === 0) return null;
+      const allMembersIncluded = g.members.every((m) => targetIds.has(m.staffId));
+      return allMembersIncluded ? g.name : null;
     })
     .filter((name): name is string => Boolean(name));
 }
