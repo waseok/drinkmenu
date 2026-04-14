@@ -8,7 +8,13 @@ function sleep(ms) {
 }
 
 function runMigrateDeploy() {
-  execSync("npx prisma migrate deploy", { stdio: "inherit" });
+  const output = execSync("npx prisma migrate deploy", {
+    stdio: "pipe",
+    encoding: "utf8",
+  });
+  if (output?.trim()) {
+    console.log(output);
+  }
 }
 
 async function main() {
@@ -17,8 +23,21 @@ async function main() {
       runMigrateDeploy();
       return;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error ?? "");
+      const message = [
+        error instanceof Error ? error.message : String(error ?? ""),
+        error && typeof error === "object" && "stdout" in error
+          ? String(error.stdout ?? "")
+          : "",
+        error && typeof error === "object" && "stderr" in error
+          ? String(error.stderr ?? "")
+          : "",
+      ].join("\n");
+
+      if (message.trim()) {
+        console.error("[prisma-migrate-retry] migrate deploy failed:");
+        console.error(message);
+      }
+
       const isAdvisoryLockTimeout =
         message.includes("P1002") && message.includes("pg_advisory_lock");
 
