@@ -834,8 +834,6 @@ export default function OrderPage({
     return (
       <HoverCard
         key={staff.id}
-        openDelay={220}
-        closeDelay={140}
         onOpenChange={(open) => {
           if (open) void fetchStaffHistory(staff.id);
         }}
