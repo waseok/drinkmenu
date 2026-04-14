@@ -22,6 +22,7 @@ import {
   CopyIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  HistoryIcon,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { LogoutButton } from "@/components/logout-button";
 import {
   Dialog,
@@ -119,6 +125,24 @@ interface Session {
   orders: OrderItem[];
   sessionTargets?: SessionTargetRow[];
   pickerGroups?: PickerGroup[];
+}
+
+interface StaffHistoryOrder {
+  id: string;
+  customItemName?: string | null;
+  quantity: number;
+  options: string;
+  createdAt: string;
+  session: {
+    id: string;
+    title: string;
+    date: string;
+  };
+  menuItem: {
+    id: string;
+    name: string;
+    shop: { id: string; name: string };
+  } | null;
 }
 
 interface CartItem {
@@ -235,6 +259,12 @@ export default function OrderPage({
   const [error, setError] = useState<string | null>(null);
   const [activeShopIdx, setActiveShopIdx] = useState(0);
   const [completedOrdersOpen, setCompletedOrdersOpen] = useState(false);
+  const [staffHistoryMap, setStaffHistoryMap] = useState<
+    Record<string, StaffHistoryOrder[]>
+  >({});
+  const [staffHistoryLoadingMap, setStaffHistoryLoadingMap] = useState<
+    Record<string, boolean>
+  >({});
   /** 이름 선택: 부서(학년) 묶음 vs 관리자 맞춤 그룹 */
   const [namePickerView, setNamePickerView] = useState<"dept" | "groups">(
     "dept",
@@ -647,6 +677,25 @@ export default function OrderPage({
     [selectedStaff, fetchExistingOrders, refreshSessionOrders],
   );
 
+  const fetchStaffHistory = useCallback(async (staffId: string) => {
+    if (staffHistoryMap[staffId] || staffHistoryLoadingMap[staffId]) return;
+
+    setStaffHistoryLoadingMap((prev) => ({ ...prev, [staffId]: true }));
+    try {
+      const res = await fetch(
+        `/api/orders?staffId=${encodeURIComponent(staffId)}&limit=8`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) throw new Error("history fetch failed");
+      const data = (await res.json()) as StaffHistoryOrder[];
+      setStaffHistoryMap((prev) => ({ ...prev, [staffId]: data }));
+    } catch {
+      setStaffHistoryMap((prev) => ({ ...prev, [staffId]: [] }));
+    } finally {
+      setStaffHistoryLoadingMap((prev) => ({ ...prev, [staffId]: false }));
+    }
+  }, [staffHistoryMap, staffHistoryLoadingMap]);
+
   // -- computed values ------------------------------------------------------
 
   const cartTotal = cart.reduce((s, c) => s + getCartUnitPrice(c) * c.quantity, 0);
@@ -721,6 +770,10 @@ export default function OrderPage({
 
   const hasCustomPickerGroups =
     (session?.pickerGroups?.length ?? 0) > 0;
+  const targetGroupNames = useMemo(
+    () => (session?.pickerGroups ?? []).map((g) => g.name),
+    [session?.pickerGroups],
+  );
 
   /** 이번 세션에서 한 건이라도 주문한 교직원 id (이름 선택 단계에서 음영 표시) */
   const staffIdsWithOrders = useMemo(() => {
@@ -766,6 +819,81 @@ export default function OrderPage({
   }
 
   if (!session) return null;
+
+  function historyItemTitle(item: StaffHistoryOrder) {
+    const base = item.menuItem?.name ?? item.customItemName ?? "직접 입력";
+    const qty = item.quantity > 1 ? ` x${item.quantity}` : "";
+    return `${base}${qty}`;
+  }
+
+  function renderStaffPickerButton(staff: Staff) {
+    const isOrdered = staffIdsWithOrders.has(staff.id);
+    const history = staffHistoryMap[staff.id];
+    const isHistoryLoading = staffHistoryLoadingMap[staff.id];
+
+    return (
+      <HoverCard
+        key={staff.id}
+        openDelay={220}
+        closeDelay={140}
+        onOpenChange={(open) => {
+          if (open) void fetchStaffHistory(staff.id);
+        }}
+      >
+        <HoverCardTrigger
+          type="button"
+          onClick={() => handleSelectStaff(staff)}
+          className={staffPickerButtonClass(staff.id)}
+        >
+          <span className="block leading-tight">{staff.name}</span>
+          {isOrdered && (
+            <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
+              주문함
+            </span>
+          )}
+        </HoverCardTrigger>
+        <HoverCardContent className="w-80 rounded-xl p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <HistoryIcon className="size-4 text-amber-600" />
+            <p className="text-sm font-semibold text-foreground">
+              {staff.name} 님 최근 주문
+            </p>
+          </div>
+          {isHistoryLoading ? (
+            <p className="text-xs text-muted-foreground">불러오는 중...</p>
+          ) : !history || history.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              최근 주문 내역이 없습니다.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {history.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-lg border bg-muted/30 px-2.5 py-2"
+                >
+                  <p className="text-xs font-semibold text-foreground">
+                    {historyItemTitle(item)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {item.menuItem?.shop?.name ?? "직접 입력"} · {item.session.title}
+                  </p>
+                  {item.options && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      옵션: {item.options}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            급할 때 대리 주문 참고용으로 확인할 수 있어요.
+          </p>
+        </HoverCardContent>
+      </HoverCard>
+    );
+  }
 
   /** 이름 선택 버튼: 이미 주문한 사람은 음영 + '주문함' 표시 (추가 주문 가능) */
   function staffPickerButtonClass(staffId: string) {
@@ -917,6 +1045,14 @@ export default function OrderPage({
                 ? "이번 세션의 주문 대상만 표시됩니다. 이름을 선택하거나 직접 입력해주세요."
                 : "이름을 선택하거나 직접 입력해주세요."}
             </p>
+            {targetGroupNames.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                대상자 그룹:{" "}
+                <span className="font-medium text-foreground">
+                  {targetGroupNames.join(", ")}
+                </span>
+              </p>
+            )}
 
             <Card className="border-0 shadow-md">
               <CardHeader>
@@ -939,12 +1075,14 @@ export default function OrderPage({
               </CardContent>
             </Card>
 
-            {/* 지난번 선택 직원 빠른 선택 */}
+            {/* 최근 선택 직원 빠른 선택 */}
             {lastStaff && (
               <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/25">
                 <div className="text-sm">
-                  <span className="text-xs text-muted-foreground">지난번 선택 · </span>
-                  <span className="font-medium">{lastStaff.department} {lastStaff.name}</span>
+                  <span className="text-xs text-muted-foreground">최근 선택 · </span>
+                  <span className="font-medium">
+                    {lastStaff.department} / {lastStaff.name}
+                  </span>
                 </div>
                 <Button
                   size="sm"
@@ -1003,23 +1141,7 @@ export default function OrderPage({
                         {dept}
                       </h3>
                       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {members.map((staff) => (
-                          <button
-                            key={staff.id}
-                            type="button"
-                            onClick={() => handleSelectStaff(staff)}
-                            className={staffPickerButtonClass(staff.id)}
-                          >
-                            <span className="block leading-tight">
-                              {staff.name}
-                            </span>
-                            {staffIdsWithOrders.has(staff.id) && (
-                              <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
-                                주문함
-                              </span>
-                            )}
-                          </button>
-                        ))}
+                        {members.map((staff) => renderStaffPickerButton(staff))}
                       </div>
                     </div>
                   ))}
@@ -1037,23 +1159,7 @@ export default function OrderPage({
                       {g.name}
                     </h3>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {g.members.map((staff) => (
-                        <button
-                          key={staff.id}
-                          type="button"
-                          onClick={() => handleSelectStaff(staff)}
-                          className={staffPickerButtonClass(staff.id)}
-                        >
-                          <span className="block leading-tight">
-                            {staff.name}
-                          </span>
-                          {staffIdsWithOrders.has(staff.id) && (
-                            <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
-                              주문함
-                            </span>
-                          )}
-                        </button>
-                      ))}
+                      {g.members.map((staff) => renderStaffPickerButton(staff))}
                     </div>
                   </div>
                 ))}

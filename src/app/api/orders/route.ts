@@ -7,26 +7,62 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
+    const staffId = searchParams.get("staffId");
+    const limitParam = searchParams.get("limit");
+    const limit = Math.min(Math.max(Number(limitParam || "8"), 1), 20);
 
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: "세션 ID가 필요합니다." },
-        { status: 400 }
-      );
+    // 세션별 주문 목록 조회 (기존 기능)
+    if (sessionId) {
+      const orders = await prisma.order.findMany({
+        where: { sessionId },
+        include: {
+          staff: true,
+          menuItem: {
+            include: { shop: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      return NextResponse.json(orders);
     }
 
-    const orders = await prisma.order.findMany({
-      where: { sessionId },
-      include: {
-        staff: true,
-        menuItem: {
-          include: { shop: true },
+    // 직원별 과거 주문 조회 (이름 선택 단계의 호버 카드에서 사용)
+    if (staffId) {
+      const orders = await prisma.order.findMany({
+        where: { staffId },
+        include: {
+          session: {
+            select: {
+              id: true,
+              title: true,
+              date: true,
+            },
+          },
+          menuItem: {
+            select: {
+              id: true,
+              name: true,
+              shop: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      });
 
-    return NextResponse.json(orders);
+      return NextResponse.json(orders);
+    }
+
+    return NextResponse.json(
+      { error: "sessionId 또는 staffId가 필요합니다." },
+      { status: 400 }
+    );
   } catch (error) {
     console.error("Failed to fetch orders:", error);
     return NextResponse.json(
