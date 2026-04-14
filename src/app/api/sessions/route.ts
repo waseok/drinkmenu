@@ -9,6 +9,25 @@ const staffLiteSelect = {
   department: true,
 } as const;
 
+type StaffGroupRow = {
+  name: string;
+  members: { staffId: string }[];
+};
+
+function getTargetGroupNames(
+  targets: { staffId: string }[],
+  staffGroups: StaffGroupRow[],
+) {
+  if (targets.length === 0) return [];
+  const targetIds = new Set(targets.map((t) => t.staffId));
+  return staffGroups
+    .map((g) => {
+      const matchedCount = g.members.filter((m) => targetIds.has(m.staffId)).length;
+      return matchedCount > 0 ? g.name : null;
+    })
+    .filter((name): name is string => Boolean(name));
+}
+
 function mapSessionListItem(
   s: {
     id: string;
@@ -25,7 +44,8 @@ function mapSessionListItem(
       staff: { id: string; name: string; department: string };
     }[];
     orders: { staffId: string }[];
-  }
+  },
+  staffGroups: StaffGroupRow[] = [],
 ) {
   const orderedStaffIds = new Set(s.orders.map((o) => o.staffId));
   const targets = s.sessionTargets;
@@ -40,6 +60,7 @@ function mapSessionListItem(
 
   return {
     ...rest,
+    targetGroupNames: getTargetGroupNames(targets, staffGroups),
     targetSummary:
       targets.length === 0
         ? null
@@ -54,23 +75,29 @@ function mapSessionListItem(
 
 export async function GET() {
   try {
-    const sessions = await prisma.orderSession.findMany({
-      orderBy: { date: "desc" },
-      include: {
-        _count: { select: { orders: true } },
-        sessionShops: {
-          include: { shop: true },
-        },
-        sessionTargets: {
-          include: {
-            staff: { select: staffLiteSelect },
+    const [sessions, staffGroups] = await Promise.all([
+      prisma.orderSession.findMany({
+        orderBy: { date: "desc" },
+        include: {
+          _count: { select: { orders: true } },
+          sessionShops: {
+            include: { shop: true },
           },
+          sessionTargets: {
+            include: {
+              staff: { select: staffLiteSelect },
+            },
+          },
+          orders: { select: { staffId: true } },
         },
-        orders: { select: { staffId: true } },
-      },
-    });
+      }),
+      prisma.staffGroup.findMany({
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { name: true, members: { select: { staffId: true } } },
+      }),
+    ]);
 
-    const payload = sessions.map(mapSessionListItem);
+    const payload = sessions.map((s) => mapSessionListItem(s, staffGroups));
     return NextResponse.json(payload);
   } catch (error) {
     console.error("Failed to fetch sessions:", error);
@@ -134,7 +161,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(mapSessionListItem(session), { status: 201 });
+    const staffGroups = await prisma.staffGroup.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { name: true, members: { select: { staffId: true } } },
+    });
+    return NextResponse.json(mapSessionListItem(session, staffGroups), { status: 201 });
   } catch (error) {
     console.error("Failed to create session:", error);
     return NextResponse.json(
@@ -214,7 +245,11 @@ export async function PUT(request: NextRequest) {
       });
     });
 
-    return NextResponse.json(mapSessionListItem(session));
+    const staffGroups = await prisma.staffGroup.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { name: true, members: { select: { staffId: true } } },
+    });
+    return NextResponse.json(mapSessionListItem(session, staffGroups));
   } catch (error) {
     console.error("Failed to update session:", error);
     return NextResponse.json(

@@ -26,6 +26,12 @@ interface Session {
   date: string;
   status: "OPEN" | "CLOSED";
   sessionShops: SessionShop[];
+  targetGroupNames?: string[];
+  targetSummary: {
+    targetCount: number;
+    orderedCount: number;
+    notOrderedCount: number;
+  } | null;
 }
 
 function formatDateKorean(dateStr: string) {
@@ -115,15 +121,36 @@ export default function OrderPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-2 text-base font-light text-muted-foreground">
-                      <Store className="size-4" />
-                      <span>
-                        {session.sessionShops.length > 0
-                          ? session.sessionShops
-                              .map((ss) => ss.shop.name)
-                              .join(", ")
-                          : "매장 미지정"}
-                      </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-base font-light text-muted-foreground">
+                        <Store className="size-4" />
+                        <span>
+                          {session.sessionShops.length > 0
+                            ? session.sessionShops
+                                .map((ss) => ss.shop.name)
+                                .join(", ")
+                            : "매장 미지정"}
+                        </span>
+                      </div>
+                      {session.targetSummary && (
+                        <div className="text-sm text-muted-foreground">
+                          {session.targetGroupNames && session.targetGroupNames.length > 0 ? (
+                            <>
+                              대상자 그룹:{" "}
+                              <span className="font-medium text-foreground">
+                                {session.targetGroupNames.join(", ")}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              대상자 지정:{" "}
+                              <span className="font-medium text-foreground">
+                                {session.targetSummary.targetCount}명
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
