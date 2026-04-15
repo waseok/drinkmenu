@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
+// ISR: 3600초(1시간)마다 재검증 (직원 그룹은 자주 변경되지 않음)
+export const revalidate = 3600;
 
 export async function GET() {
   try {

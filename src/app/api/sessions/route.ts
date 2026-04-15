@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
+// ISR: 60초마다 재검증 (세션은 자주 변경되지 않음)
+export const revalidate = 60;
 
 const staffLiteSelect = {
   id: true,

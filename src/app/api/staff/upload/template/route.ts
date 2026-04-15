@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
-export const dynamic = "force-dynamic";
+// ISR: 86400초(1일)마다 재검증 (샘플 템플릿은 정적 파일)
+export const revalidate = 86400;
 
 /**
  * 업로드 파서(`parseExcel`)와 동일한 열 이름으로 샘플 시트를 만듭니다.
@@ -31,7 +32,7 @@ export async function GET() {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "public, max-age=86400, immutable",
     },
   });
 }

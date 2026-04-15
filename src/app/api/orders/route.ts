@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
+// ISR: 10초마다 재검증 (주문은 실시간으로 들어옴)
+export const revalidate = 10;
 
 export async function GET(request: NextRequest) {
   try {
