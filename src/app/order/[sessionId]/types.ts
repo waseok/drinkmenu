@@ -52,6 +52,7 @@ export interface OrderItem {
   staffId: string;
   menuItemId: string | null;
   customItemName?: string | null;
+  customShopName?: string | null;
   quantity: number;
   options: string;
   price: number;
@@ -66,9 +67,35 @@ export interface Session {
   deadlineTime?: string | null;
   status: "OPEN" | "CLOSED";
   sessionShops: SessionShop[];
-  orders: OrderItem[];
+  orders?: OrderItem[];
   sessionTargets?: SessionTargetRow[];
   pickerGroups?: PickerGroup[];
+}
+
+export interface StaffHistoryOrder {
+  id: string;
+  customItemName?: string | null;
+  quantity: number;
+  options: string;
+  createdAt: string;
+  session: {
+    id: string;
+    title: string;
+    date: string;
+  };
+  menuItem: {
+    id: string;
+    name: string;
+    shop: { id: string; name: string };
+  } | null;
+}
+
+export interface CustomLineOrder {
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  options: string;
 }
 
 export interface CartItem {

@@ -383,10 +383,10 @@ export default function AdminStaffPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">직원 관리</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-4xl font-bold tracking-tight">직원 관리</h1>
+          <p className="mt-2 text-lg font-light text-muted-foreground">
             직원 정보를 등록, 수정, 삭제할 수 있습니다.
           </p>
         </div>

@@ -21,6 +21,7 @@ import {
   ListRestartIcon,
   PhoneIcon,
   CopyIcon,
+  HistoryIcon,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,10 +31,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { LogoutButton } from "@/components/logout-button";
 import { cn } from "@/lib/utils";
 import {
@@ -47,6 +52,8 @@ import {
   OrderItem,
   Session,
   CartItem,
+  StaffHistoryOrder,
+  CustomLineOrder,
 } from "./types";
 import { GONGCHA_TOPPING_OPTIONS } from "./constants";
 import {
@@ -89,14 +96,24 @@ export default function OrderPage({
   const [manualName, setManualName] = useState("");
   const [manualDepartment, setManualDepartment] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [customOrders, setCustomOrders] = useState<{ id: string; text: string }[]>([]);
-  const [customOrderInput, setCustomOrderInput] = useState("");
+  const [customLines, setCustomLines] = useState<CustomLineOrder[]>([]);
+  const [customDraftName, setCustomDraftName] = useState("");
+  const [customDraftQty, setCustomDraftQty] = useState("1");
+  const [customDraftPrice, setCustomDraftPrice] = useState("");
+  const [customDraftOptions, setCustomDraftOptions] = useState("");
   const [existingOrders, setExistingOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeShopIdx, setActiveShopIdx] = useState(0);
   const [completedOrdersOpen, setCompletedOrdersOpen] = useState(false);
+  const [orderedStaffIds, setOrderedStaffIds] = useState<string[]>([]);
+  const [staffHistoryMap, setStaffHistoryMap] = useState<
+    Record<string, StaffHistoryOrder[]>
+  >({});
+  const [staffHistoryLoadingMap, setStaffHistoryLoadingMap] = useState<
+    Record<string, boolean>
+  >({});
   /** 이름 선택: 부서(학년) 묶음 vs 관리자 맞춤 그룹 */
   const [namePickerView, setNamePickerView] = useState<"dept" | "groups">(
     "dept",
@@ -117,20 +134,23 @@ export default function OrderPage({
   }, [menuLightbox]);
 
   /** 세션 전체 주문 목록만 다시 받아 이름 선택 화면의 '주문함' 표시를 최신으로 유지 */
-  const refreshSessionOrders = useCallback(async () => {
+  const fetchOrderedStaffIds = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const data: Session = await res.json();
-      setSession((prev) =>
-        prev ? { ...prev, orders: data.orders } : prev,
+      const res = await fetch(
+        `/api/orders?sessionId=${encodeURIComponent(sessionId)}&summary=staffIds`,
+        { cache: "no-store" },
       );
+      if (!res.ok) return;
+      const data = (await res.json()) as { staffIds?: string[] };
+      setOrderedStaffIds(Array.isArray(data.staffIds) ? data.staffIds : []);
     } catch {
       /* 무시: 보조 갱신 */
     }
   }, [sessionId]);
+
+  const refreshSessionOrders = useCallback(async () => {
+    void fetchOrderedStaffIds();
+  }, [fetchOrderedStaffIds]);
 
   // -- data fetching --------------------------------------------------------
 
@@ -138,22 +158,50 @@ export default function OrderPage({
     let cancelled = false;
     async function fetchData() {
       try {
-        const [sessionRes, staffRes] = await Promise.all([
-          fetch(`/api/sessions/${sessionId}`, { cache: "no-store" }),
+        const [sessionRes, staffRes, orderedIdsRes] = await Promise.all([
+          fetch(`/api/sessions/${sessionId}?includeOrders=false`, {
+            cache: "no-store",
+          }),
           fetch("/api/staff", { cache: "no-store" }),
+          fetch(
+            `/api/orders?sessionId=${encodeURIComponent(sessionId)}&summary=staffIds`,
+            { cache: "no-store" },
+          ),
         ]);
 
         if (cancelled) return;
 
         if (!sessionRes.ok) {
-          const data = await sessionRes.json();
-          setError(data.error || "세션을 찾을 수 없습니다.");
+          const data = await sessionRes.json().catch(() => ({}));
+          setError(
+            (data as { error?: string }).error || "세션을 찾을 수 없습니다.",
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (!staffRes.ok) {
+          const data = await staffRes.json().catch(() => ({}));
+          setError(
+            (data as { error?: string }).error ||
+              "교직원 목록을 불러오는데 실패했습니다.",
+          );
           setLoading(false);
           return;
         }
 
         const sessionData: Session = await sessionRes.json();
         const staffData: Staff[] = await staffRes.json();
+        if (orderedIdsRes.ok) {
+          const orderedData = (await orderedIdsRes.json()) as {
+            staffIds?: string[];
+          };
+          setOrderedStaffIds(
+            Array.isArray(orderedData.staffIds) ? orderedData.staffIds : [],
+          );
+        } else {
+          setOrderedStaffIds([]);
+        }
 
         if (sessionData.status === "CLOSED") {
           setError("마감된 주문입니다. 더 이상 주문할 수 없습니다.");
@@ -257,22 +305,27 @@ export default function OrderPage({
 
   const handleChangeStaff = useCallback(() => {
     if (
-      cart.length > 0 &&
-      !confirm("이름을 변경하면 장바구니가 초기화됩니다. 계속하시겠습니까?")
+      (cart.length > 0 || customLines.length > 0) &&
+      !confirm(
+        "이름을 변경하면 장바구니와 직접 입력 항목이 초기화됩니다. 계속하시겠습니까?",
+      )
     ) {
       return;
     }
     setSelectedStaff(null);
     setCart([]);
-    setCustomOrders([]);
-    setCustomOrderInput("");
+    setCustomLines([]);
+    setCustomDraftName("");
+    setCustomDraftQty("1");
+    setCustomDraftPrice("");
+    setCustomDraftOptions("");
     setExistingOrders([]);
     setSearchQuery("");
     setManualName("");
     setManualDepartment("");
     setActiveShopIdx(0);
     setStep(1);
-  }, [cart.length]);
+  }, [cart.length, customLines.length]);
 
   const addToCart = useCallback((menuItem: MenuItem, shopName: string) => {
     const useGongchaOption = isGongchaShop(shopName);
@@ -353,6 +406,62 @@ export default function OrderPage({
     setCart((prev) => prev.filter((c) => c.cartId !== cartId));
   }, []);
 
+  const updateCustomLineQty = useCallback((id: string, delta: number) => {
+    setCustomLines((prev) =>
+      prev
+        .map((c) =>
+          c.id === id
+            ? { ...c, quantity: Math.max(0, c.quantity + delta) }
+            : c,
+        )
+        .filter((c) => c.quantity > 0),
+    );
+  }, []);
+
+  const updateCustomLineUnitPrice = useCallback((id: string, raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    const v = digits === "" ? 0 : parseInt(digits, 10);
+    setCustomLines((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, unitPrice: Number.isFinite(v) ? Math.max(0, v) : 0 }
+          : c,
+      ),
+    );
+  }, []);
+
+  const removeCustomLine = useCallback((id: string) => {
+    setCustomLines((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const addCustomLineFromDraft = useCallback(() => {
+    const name = customDraftName.trim();
+    if (!name) {
+      toast.error("음료명을 입력해주세요.");
+      return;
+    }
+    const quantity = Math.max(
+      1,
+      parseInt(String(customDraftQty).replace(/\D/g, ""), 10) || 1,
+    );
+    const pRaw = String(customDraftPrice).replace(/\D/g, "");
+    const unitPrice = pRaw === "" ? 0 : Math.max(0, parseInt(pRaw, 10) || 0);
+    setCustomLines((prev) => [
+      ...prev,
+      {
+        id: `custom-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name,
+        quantity,
+        unitPrice,
+        options: customDraftOptions.trim(),
+      },
+    ]);
+    setCustomDraftName("");
+    setCustomDraftQty("1");
+    setCustomDraftPrice("");
+    setCustomDraftOptions("");
+  }, [customDraftName, customDraftQty, customDraftPrice, customDraftOptions]);
+
   const handleScrollToCart = useCallback(() => {
     cartSectionRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -370,10 +479,15 @@ export default function OrderPage({
   }, []);
 
   const handleSubmitOrder = useCallback(async () => {
-    if (!selectedStaff || (cart.length === 0 && customOrders.length === 0)) return;
+    if (!selectedStaff || (cart.length === 0 && customLines.length === 0)) return;
+    if (!session) return;
     setSubmitting(true);
     try {
       const isManual = Boolean(selectedStaff.isManual);
+      const shopLabel =
+        session.sessionShops[activeShopIdx]?.shop?.name ??
+        session.sessionShops[0]?.shop?.name ??
+        undefined;
       const results = await Promise.all([
         ...cart.map((item) =>
           fetch("/api/orders", {
@@ -391,7 +505,7 @@ export default function OrderPage({
             }),
           }),
         ),
-        ...customOrders.map((item) =>
+        ...customLines.map((item) =>
           fetch("/api/orders", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -400,10 +514,11 @@ export default function OrderPage({
               staffId: isManual ? undefined : selectedStaff.id,
               staffName: selectedStaff.name,
               staffDepartment: selectedStaff.department,
-              customItemName: item.text,
-              quantity: 1,
-              options: "",
-              price: 0,
+              customItemName: item.name,
+              quantity: item.quantity,
+              options: item.options,
+              price: item.unitPrice,
+              ...(shopLabel ? { customShopName: shopLabel } : {}),
             }),
           }),
         ),
@@ -424,8 +539,11 @@ export default function OrderPage({
       toast.success("주문이 완료되었습니다!");
       setCompletedOrdersOpen(false);
       setCart([]);
-      setCustomOrders([]);
-      setCustomOrderInput("");
+      setCustomLines([]);
+      setCustomDraftName("");
+      setCustomDraftQty("1");
+      setCustomDraftPrice("");
+      setCustomDraftOptions("");
       await fetchExistingOrders(resolvedStaff?.id ?? (isManual ? null : selectedStaff.id));
       void refreshSessionOrders();
       setStep(3);
@@ -434,7 +552,16 @@ export default function OrderPage({
     } finally {
       setSubmitting(false);
     }
-  }, [selectedStaff, cart, sessionId, fetchExistingOrders, refreshSessionOrders]);
+  }, [
+    selectedStaff,
+    cart,
+    customLines,
+    sessionId,
+    session,
+    activeShopIdx,
+    fetchExistingOrders,
+    refreshSessionOrders,
+  ]);
 
   const handleUpdateOrderQty = useCallback(
     async (orderId: string, newQty: number) => {
@@ -501,10 +628,35 @@ export default function OrderPage({
     [selectedStaff, fetchExistingOrders, refreshSessionOrders],
   );
 
+  const fetchStaffHistory = useCallback(async (staffId: string) => {
+    if (staffHistoryMap[staffId] || staffHistoryLoadingMap[staffId]) return;
+
+    setStaffHistoryLoadingMap((prev) => ({ ...prev, [staffId]: true }));
+    try {
+      const res = await fetch(
+        `/api/orders?staffId=${encodeURIComponent(staffId)}&limit=8`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) throw new Error("history fetch failed");
+      const data = (await res.json()) as StaffHistoryOrder[];
+      setStaffHistoryMap((prev) => ({ ...prev, [staffId]: data }));
+    } catch {
+      setStaffHistoryMap((prev) => ({ ...prev, [staffId]: [] }));
+    } finally {
+      setStaffHistoryLoadingMap((prev) => ({ ...prev, [staffId]: false }));
+    }
+  }, [staffHistoryMap, staffHistoryLoadingMap]);
+
   // -- computed values ------------------------------------------------------
 
   const cartTotal = cart.reduce((s, c) => s + getCartUnitPrice(c) * c.quantity, 0);
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
+  const customLinesSubtotal = customLines.reduce(
+    (s, c) => s + c.unitPrice * c.quantity,
+    0,
+  );
+  const customLineQtySum = customLines.reduce((s, c) => s + c.quantity, 0);
+  const checkoutTotal = cartTotal + customLinesSubtotal;
 
   // 마감 시간까지 남은 시간 계산
   const [deadlineCountdown, setDeadlineCountdown] = useState<string | null>(null);
@@ -575,15 +727,16 @@ export default function OrderPage({
 
   const hasCustomPickerGroups =
     (session?.pickerGroups?.length ?? 0) > 0;
+  const targetGroupNames = useMemo(
+    () => (session?.pickerGroups ?? []).map((g) => g.name),
+    [session?.pickerGroups],
+  );
+  const targetStaffCount = session?.sessionTargets?.length ?? 0;
 
   /** 이번 세션에서 한 건이라도 주문한 교직원 id (이름 선택 단계에서 음영 표시) */
   const staffIdsWithOrders = useMemo(() => {
-    const ids = new Set<string>();
-    for (const o of session?.orders ?? []) {
-      if (o.staffId) ids.add(o.staffId);
-    }
-    return ids;
-  }, [session?.orders]);
+    return new Set(orderedStaffIds);
+  }, [orderedStaffIds]);
 
   // -- early returns --------------------------------------------------------
 
@@ -621,6 +774,79 @@ export default function OrderPage({
 
   if (!session) return null;
 
+  function historyItemTitle(item: StaffHistoryOrder) {
+    const base = item.menuItem?.name ?? item.customItemName ?? "직접 입력";
+    const qty = item.quantity > 1 ? ` x${item.quantity}` : "";
+    return `${base}${qty}`;
+  }
+
+  function renderStaffPickerButton(staff: Staff) {
+    const isOrdered = staffIdsWithOrders.has(staff.id);
+    const history = staffHistoryMap[staff.id];
+    const isHistoryLoading = staffHistoryLoadingMap[staff.id];
+
+    return (
+      <HoverCard
+        key={staff.id}
+        onOpenChange={(open) => {
+          if (open) void fetchStaffHistory(staff.id);
+        }}
+      >
+        <HoverCardTrigger
+          type="button"
+          onClick={() => handleSelectStaff(staff)}
+          className={staffPickerButtonClass(staff.id)}
+        >
+          <span className="block leading-tight">{staff.name}</span>
+          {isOrdered && (
+            <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
+              주문함
+            </span>
+          )}
+        </HoverCardTrigger>
+        <HoverCardContent className="w-80 rounded-xl p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <HistoryIcon className="size-4 text-amber-600" />
+            <p className="text-sm font-semibold text-foreground">
+              {staff.name} 님 최근 주문
+            </p>
+          </div>
+          {isHistoryLoading ? (
+            <p className="text-xs text-muted-foreground">불러오는 중...</p>
+          ) : !history || history.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              최근 주문 내역이 없습니다.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {history.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-lg border bg-muted/30 px-2.5 py-2"
+                >
+                  <p className="text-xs font-semibold text-foreground">
+                    {historyItemTitle(item)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {item.menuItem?.shop?.name ?? "직접 입력"} · {item.session.title}
+                  </p>
+                  {item.options && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      옵션: {item.options}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            급할 때 대리 주문 참고용으로 확인할 수 있어요.
+          </p>
+        </HoverCardContent>
+      </HoverCard>
+    );
+  }
+
   /** 이름 선택 버튼: 이미 주문한 사람은 음영 + '주문함' 표시 (추가 주문 가능) */
   function staffPickerButtonClass(staffId: string) {
     return cn(
@@ -656,12 +882,12 @@ export default function OrderPage({
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50/50 via-background to-background pb-32">
       {/* ── Sticky header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto max-w-3xl px-4 py-3">
+      <header className="sticky top-0 z-20 border-b border-amber-100/60 bg-white/90 backdrop-blur-xl supports-[backdrop-filter]:bg-white/80">
+        <div className="mx-auto max-w-3xl px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-base font-semibold">{session.title}</h1>
-              <p className="text-xs text-muted-foreground">
+              <h1 className="text-lg font-bold">{session.title}</h1>
+              <p className="text-sm font-light text-muted-foreground">
                 {formatDate(session.date)}
                 {session.deadlineTime && (
                   <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
@@ -672,10 +898,10 @@ export default function OrderPage({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {step === 2 && cartCount > 0 && (
+              {step === 2 && (cartCount > 0 || customLines.length > 0) && (
                 <Button variant="secondary" size="sm" onClick={handleScrollToCart}>
                   <ShoppingCartIcon className="mr-1.5 size-4" />
-                  장바구니 {cartCount}
+                  담은 품목 {cartCount + customLineQtySum}
                 </Button>
               )}
               <Link href="/order">
@@ -750,9 +976,9 @@ export default function OrderPage({
                 전화: {activeShop.phone}
               </Badge>
             )}
-            {step === 2 && cartCount > 0 && (
+            {step === 2 && (cartCount > 0 || customLines.length > 0) && (
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                장바구니: {cartCount}개 · {formatPrice(cartTotal)}
+                합계: {cartCount + customLineQtySum}잔 · {formatPrice(checkoutTotal)}
               </Badge>
             )}
           </div>
@@ -765,12 +991,31 @@ export default function OrderPage({
         {/* STEP 1 : Select name                                          */}
         {/* ============================================================= */}
         {step === 1 && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+          <div className="space-y-5">
+            <p className="text-base font-light text-muted-foreground">
               {session.sessionTargets && session.sessionTargets.length > 0
                 ? "이번 세션의 주문 대상만 표시됩니다. 이름을 선택하거나 직접 입력해주세요."
                 : "이름을 선택하거나 직접 입력해주세요."}
             </p>
+            {targetStaffCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {targetGroupNames.length > 0 ? (
+                  <>
+                    대상자 그룹:{" "}
+                    <span className="font-medium text-foreground">
+                      {targetGroupNames.join(", ")}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    대상자 지정:{" "}
+                    <span className="font-medium text-foreground">
+                      {targetStaffCount}명 (개별 지정)
+                    </span>
+                  </>
+                )}
+              </p>
+            )}
 
             <Card className="border-0 shadow-md">
               <CardHeader>
@@ -793,12 +1038,14 @@ export default function OrderPage({
               </CardContent>
             </Card>
 
-            {/* 지난번 선택 직원 빠른 선택 */}
+            {/* 최근 선택 직원 빠른 선택 */}
             {lastStaff && (
               <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/25">
                 <div className="text-sm">
-                  <span className="text-xs text-muted-foreground">지난번 선택 · </span>
-                  <span className="font-medium">{lastStaff.department} {lastStaff.name}</span>
+                  <span className="text-xs text-muted-foreground">최근 선택 · </span>
+                  <span className="font-medium">
+                    {lastStaff.department} / {lastStaff.name}
+                  </span>
                 </div>
                 <Button
                   size="sm"
@@ -857,23 +1104,7 @@ export default function OrderPage({
                         {dept}
                       </h3>
                       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {members.map((staff) => (
-                          <button
-                            key={staff.id}
-                            type="button"
-                            onClick={() => handleSelectStaff(staff)}
-                            className={staffPickerButtonClass(staff.id)}
-                          >
-                            <span className="block leading-tight">
-                              {staff.name}
-                            </span>
-                            {staffIdsWithOrders.has(staff.id) && (
-                              <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
-                                주문함
-                              </span>
-                            )}
-                          </button>
-                        ))}
+                        {members.map((staff) => renderStaffPickerButton(staff))}
                       </div>
                     </div>
                   ))}
@@ -891,23 +1122,7 @@ export default function OrderPage({
                       {g.name}
                     </h3>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                      {g.members.map((staff) => (
-                        <button
-                          key={staff.id}
-                          type="button"
-                          onClick={() => handleSelectStaff(staff)}
-                          className={staffPickerButtonClass(staff.id)}
-                        >
-                          <span className="block leading-tight">
-                            {staff.name}
-                          </span>
-                          {staffIdsWithOrders.has(staff.id) && (
-                            <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
-                              주문함
-                            </span>
-                          )}
-                        </button>
-                      ))}
+                      {g.members.map((staff) => renderStaffPickerButton(staff))}
                     </div>
                   </div>
                 ))}
@@ -966,7 +1181,10 @@ export default function OrderPage({
                             </span>
                           )}
                           <div className="mt-0.5 text-xs text-muted-foreground">
-                            {formatPrice(order.price)} × {order.quantity} = {formatPrice(order.price * order.quantity)}
+                            {order.menuItem?.shop?.name ?? order.customShopName ?? "직접 입력"}
+                            {" · "}
+                            {formatPrice(order.price)} × {order.quantity} ={" "}
+                            {formatPrice(order.price * order.quantity)}
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
@@ -1178,61 +1396,145 @@ export default function OrderPage({
               </>
             )}
 
-            {/* ─── Cart section ─────────────────────────────────────── */}
-            {/* ─── 직접 주문 입력 섹션 ──────────────────────────────── */}
+            {/* ─── 직접 입력 + 메뉴 장바구니 (스크롤 앵커) ───────────────── */}
+            <div ref={cartSectionRef} className="space-y-4 scroll-mt-28">
             <Separator />
             <div>
               <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
                 <PlusIcon className="size-4" />
                 직접 입력
                 <span className="text-xs font-normal text-muted-foreground">
-                  (등록 메뉴 외 주문)
+                  (메뉴판에 없을 때 음료명·수량·가격)
                 </span>
               </h3>
-              <div className="flex gap-2">
-                <Textarea
-                  placeholder="예: 아이스아메리카노 1잔, 카페라떼 1잔"
-                  value={customOrderInput}
-                  onChange={(e) => setCustomOrderInput(e.target.value)}
-                  className="min-h-[60px] flex-1 resize-none text-sm"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="self-end"
-                  onClick={() => {
-                    const text = customOrderInput.trim();
-                    if (!text) return;
-                    setCustomOrders((prev) => [
-                      ...prev,
-                      { id: `custom-${Date.now()}`, text },
-                    ]);
-                    setCustomOrderInput("");
-                  }}
-                >
-                  추가
-                </Button>
+              <p className="mb-3 text-xs text-muted-foreground">
+                위에서 고른 매장(
+                {activeShop?.name ?? "—"}
+                )으로 취합됩니다. 다른 매장이면 탭을 먼저 바꿔 주세요.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="grid gap-1 text-xs">
+                  <span className="text-muted-foreground">음료명</span>
+                  <Input
+                    placeholder="예: 아이스 아메리카노"
+                    value={customDraftName}
+                    onChange={(e) => setCustomDraftName(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs">
+                  <span className="text-muted-foreground">단가(원)</span>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="4500"
+                    value={customDraftPrice}
+                    onChange={(e) => setCustomDraftPrice(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs">
+                  <span className="text-muted-foreground">수량</span>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="1"
+                    value={customDraftQty}
+                    onChange={(e) => setCustomDraftQty(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs sm:col-span-2">
+                  <span className="text-muted-foreground">옵션·메모 (선택)</span>
+                  <Input
+                    placeholder="예: 샷 추가, 덜 달게"
+                    value={customDraftOptions}
+                    onChange={(e) => setCustomDraftOptions(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
               </div>
-              {customOrders.length > 0 && (
-                <div className="mt-2 space-y-1.5">
-                  {customOrders.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm"
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={addCustomLineFromDraft}
+              >
+                장바구니에 담기
+              </Button>
+
+              {customLines.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    직접 입력 품목 ({customLineQtySum}잔)
+                  </p>
+                  {customLines.map((line) => (
+                    <Card
+                      key={line.id}
+                      size="sm"
+                      className="border-dashed border-amber-200/80 bg-amber-50/20 dark:border-amber-900 dark:bg-amber-950/15"
                     >
-                      <span className="flex-1">{item.text}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() =>
-                          setCustomOrders((prev) =>
-                            prev.filter((o) => o.id !== item.id)
-                          )
-                        }
-                      >
-                        <XIcon className="size-3.5" />
-                      </Button>
-                    </div>
+                      <CardContent className="space-y-2 pt-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{line.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {activeShop?.name ?? "매장 미지정"} · 단가 수정 가능
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            type="button"
+                            onClick={() => removeCustomLine(line.id)}
+                          >
+                            <XIcon className="size-3.5" />
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-1 rounded-md border bg-background">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => updateCustomLineQty(line.id, -1)}
+                            >
+                              <MinusIcon className="size-3" />
+                            </Button>
+                            <span className="w-6 text-center text-sm font-medium">
+                              {line.quantity}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => updateCustomLineQty(line.id, 1)}
+                            >
+                              <PlusIcon className="size-3" />
+                            </Button>
+                          </div>
+                          <label className="flex items-center gap-1.5 text-xs">
+                            <span className="text-muted-foreground">단가</span>
+                            <Input
+                              inputMode="numeric"
+                              className="h-8 w-24 text-right text-xs"
+                              value={String(line.unitPrice)}
+                              onChange={(e) =>
+                                updateCustomLineUnitPrice(line.id, e.target.value)
+                              }
+                            />
+                            <span className="text-muted-foreground">원</span>
+                          </label>
+                          <span className="ml-auto text-sm font-semibold">
+                            {formatPrice(line.unitPrice * line.quantity)}
+                          </span>
+                        </div>
+                        {line.options ? (
+                          <p className="text-xs text-muted-foreground">
+                            옵션: {line.options}
+                          </p>
+                        ) : null}
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               )}
@@ -1241,7 +1543,7 @@ export default function OrderPage({
             {cart.length > 0 && (
               <>
                 <Separator />
-                <div ref={cartSectionRef}>
+                <div>
                   <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
                     <ShoppingCartIcon className="size-4" />
                     장바구니
@@ -1395,6 +1697,7 @@ export default function OrderPage({
                 </div>
               </>
             )}
+            </div>
           </div>
         )}
 
@@ -1404,14 +1707,14 @@ export default function OrderPage({
         {step === 3 && selectedStaff && (
           <div className="space-y-6">
             {/* Success banner */}
-            <Card className="border-0 bg-gradient-to-br from-emerald-50 to-white shadow-md dark:from-emerald-950/30 dark:to-background">
-              <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
-                <CheckCircle2Icon className="size-8 text-emerald-600 dark:text-emerald-400" />
+            <Card className="border-0 bg-gradient-to-br from-emerald-50 via-white to-amber-50/20 shadow-lg dark:from-emerald-950/30 dark:to-background rounded-[2rem]">
+              <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+              <div className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-800/20">
+                <CheckCircle2Icon className="size-10 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">주문이 완료되었습니다</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <h2 className="text-2xl font-bold">주문이 완료되었습니다</h2>
+                <p className="mt-2 text-base font-light text-muted-foreground">
                   {selectedStaff.name}님의 주문이 정상 접수되었습니다.
                 </p>
               </div>
@@ -1453,7 +1756,9 @@ export default function OrderPage({
                                 </span>
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {order.menuItem?.shop?.name ?? "직접 입력"}
+                                {order.menuItem?.shop?.name ??
+                                  order.customShopName ??
+                                  "직접 입력"}
                                 {order.options && ` · ${order.options}`}
                               </p>
                             </div>
@@ -1496,6 +1801,11 @@ export default function OrderPage({
               <Button
                 onClick={() => {
                   setCart([]);
+                  setCustomLines([]);
+                  setCustomDraftName("");
+                  setCustomDraftQty("1");
+                  setCustomDraftPrice("");
+                  setCustomDraftOptions("");
                   setStep(2);
                 }}
                 className="w-full"
@@ -1508,6 +1818,11 @@ export default function OrderPage({
                 onClick={() => {
                   setSelectedStaff(null);
                   setCart([]);
+                  setCustomLines([]);
+                  setCustomDraftName("");
+                  setCustomDraftQty("1");
+                  setCustomDraftPrice("");
+                  setCustomDraftOptions("");
                   setExistingOrders([]);
                   setSearchQuery("");
                   setManualName("");
@@ -1537,14 +1852,14 @@ export default function OrderPage({
       </main>
 
       {/* ── Sticky bottom bar (cart summary) ───────────────────────────── */}
-      {step === 2 && (cart.length > 0 || customOrders.length > 0) && (
+      {step === 2 && (cart.length > 0 || customLines.length > 0) && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
             <div>
               <p className="text-xs text-muted-foreground">
-                {cartCount + customOrders.length}개 선택
+                {cartCount + customLineQtySum}잔 · {cart.length + customLines.length}줄
               </p>
-              <p className="text-base font-bold">{formatPrice(cartTotal)}</p>
+              <p className="text-base font-bold">{formatPrice(checkoutTotal)}</p>
             </div>
             <Button
               onClick={handleSubmitOrder}
@@ -1573,22 +1888,6 @@ export default function OrderPage({
         setLightboxZoom={setLightboxZoom}
       />
 
-      {/* ── 모바일 장바구니 Sticky 바 (Step 2, 카트 항목 있을 때) ──── */}
-      {step === 2 && cartCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur sm:hidden">
-          <button
-            type="button"
-            onClick={handleScrollToCart}
-            className="flex w-full items-center justify-between rounded-2xl bg-amber-500 px-4 py-3 text-white active:bg-amber-600"
-          >
-            <div className="flex items-center gap-2">
-              <ShoppingCartIcon className="size-5" />
-              <span className="font-semibold">{cartCount}개 선택됨</span>
-            </div>
-            <span className="font-bold">{formatPrice(cartTotal)}</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

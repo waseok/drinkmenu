@@ -53,12 +53,18 @@ interface Order {
   staffId: string;
   menuItemId: string | null;
   customItemName: string | null;
+  customShopName: string | null;
   quantity: number;
   options: string;
   price: number;
   createdAt: string;
   staff: Staff;
   menuItem: MenuItem | null;
+}
+
+/** 취합·표에서 업체 열에 쓰는 이름 (메뉴 주문 = 매장명, 직접 입력 = 담을 때 고른 매장) */
+function shopLabelForOrder(o: Order) {
+  return o.menuItem?.shop.name ?? o.customShopName ?? "직접 입력";
 }
 
 interface SessionTargetRow {
@@ -135,7 +141,7 @@ export default function ResultPage({
   }, [fetchData]);
 
   const shopGroups = orders.reduce<Record<string, Order[]>>((acc, order) => {
-    const shopName = order.menuItem?.shop.name ?? "직접 입력";
+    const shopName = shopLabelForOrder(order);
     if (!acc[shopName]) acc[shopName] = [];
     acc[shopName].push(order);
     return acc;
@@ -145,7 +151,9 @@ export default function ResultPage({
     ([shopName, shopOrders]) => ({
       shopName,
       orders: shopOrders,
-      phone: shopOrders[0]?.menuItem?.shop.phone || "",
+      phone:
+        shopOrders.find((o) => o.menuItem?.shop.phone)?.menuItem?.shop.phone ||
+        "",
       subtotal: shopOrders.reduce((sum, o) => sum + o.price * o.quantity, 0),
       count: shopOrders.reduce((sum, o) => sum + o.quantity, 0),
     })
@@ -238,7 +246,7 @@ export default function ResultPage({
       "─".repeat(40),
       ...orders.map(
         (o, i) =>
-          `${i + 1}. ${o.staff.department} ${o.staff.name} | ${o.menuItem?.shop.name ?? "직접 입력"} - ${o.menuItem?.name ?? o.customItemName ?? "직접 입력"}${o.quantity > 1 ? ` x${o.quantity}` : ""}${o.options ? ` (${o.options})` : ""} | ${formatPrice(o.price * o.quantity)}`
+          `${i + 1}. ${o.staff.department} ${o.staff.name} | ${shopLabelForOrder(o)} - ${o.menuItem?.name ?? o.customItemName ?? "직접 입력"}${o.quantity > 1 ? ` x${o.quantity}` : ""}${o.options ? ` (${o.options})` : ""} | ${formatPrice(o.price * o.quantity)}`
       ),
       "─".repeat(40),
       "",
@@ -386,10 +394,10 @@ export default function ResultPage({
 
       <div className="mx-auto max-w-5xl px-4 py-8">
         {/* Header & Action Buttons */}
-        <div className="no-print mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="no-print mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">{session.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h1 className="text-3xl font-bold sm:text-4xl">{session.title}</h1>
+            <p className="mt-2 text-base font-light text-muted-foreground">
               {formatDateKorean(session.date)}
               <Badge variant="secondary" className="ml-2">
                 {session.status === "OPEN" ? "진행중" : "마감"}
@@ -507,9 +515,9 @@ export default function ResultPage({
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className={shopColorMap[order.menuItem?.shop.name ?? "직접 입력"]}
+                            className={shopColorMap[shopLabelForOrder(order)]}
                           >
-                            {order.menuItem?.shop.name ?? "직접 입력"}
+                            {shopLabelForOrder(order)}
                           </Badge>
                         </TableCell>
                         <TableCell>{order.menuItem?.name ?? order.customItemName ?? "직접 입력"}</TableCell>
@@ -573,8 +581,8 @@ export default function ResultPage({
               </Card>
 
               {/* Per-shop breakdown */}
-              <div className="mt-6 space-y-4">
-                <h3 className="text-lg font-semibold">업체별 주문 내역</h3>
+              <div className="mt-8 space-y-5">
+                <h3 className="text-2xl font-bold">업체별 주문 내역</h3>
                 {shopSubtotals.map((group) => (
                   <Card key={group.shopName} className={`border-l-4 ${shopColorMap[group.shopName]?.includes("blue") ? "border-l-blue-400" : shopColorMap[group.shopName]?.includes("emerald") ? "border-l-emerald-400" : shopColorMap[group.shopName]?.includes("violet") ? "border-l-violet-400" : shopColorMap[group.shopName]?.includes("orange") ? "border-l-orange-400" : shopColorMap[group.shopName]?.includes("rose") ? "border-l-rose-400" : "border-l-cyan-400"}`}>
                     <CardHeader>

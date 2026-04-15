@@ -761,13 +761,13 @@ export default function AdminShopsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50/60 via-background to-background">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50/40 via-orange-50/10 to-background">
       <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-8 rounded-3xl border bg-background/80 p-6 shadow-sm backdrop-blur">
-        <p className="text-sm font-medium text-amber-700">Admin</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">업체 &amp; 메뉴 관리</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          네이버 메뉴를 가져오고, 메뉴 사진과 함께 더 보기 좋게 관리할 수 있습니다.
+      <div className="page-hero mb-10">
+        <p className="text-base font-bold text-amber-700">Admin</p>
+        <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">업체 &amp; 메뉴 관리</h1>
+        <p className="mt-3 max-w-2xl text-base font-light leading-relaxed text-muted-foreground sm:text-lg">
+          네이버에서 메뉴를 가져오고, 메뉴 사진과 함께 관리합니다.
         </p>
       </div>
 
@@ -853,7 +853,7 @@ export default function AdminShopsPage() {
       {/* Shop List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-2xl font-bold">
             등록된 업체 ({shops.length})
           </h2>
           <Button onClick={openAddShopDialog}>

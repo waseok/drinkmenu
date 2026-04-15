@@ -1,36 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// ISR: 10초마다 재검증 (주문은 실시간으로 들어옴)
-export const revalidate = 10;
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
+    const staffId = searchParams.get("staffId");
+    const summary = searchParams.get("summary");
+    const limitParam = searchParams.get("limit");
+    const limit = Math.min(Math.max(Number(limitParam || "8"), 1), 20);
 
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: "세션 ID가 필요합니다." },
-        { status: 400 }
-      );
+    // 세션별 주문 목록 조회 (기존 기능)
+    if (sessionId) {
+      // 이름 선택 단계 "주문함" 표시용 경량 조회
+      if (summary === "staffIds") {
+        const rows = await prisma.order.findMany({
+          where: { sessionId },
+          select: { staffId: true },
+          distinct: ["staffId"],
+        });
+        return NextResponse.json({ staffIds: rows.map((r) => r.staffId) });
+      }
+
+      const orders = await prisma.order.findMany({
+        where: { sessionId },
+        include: {
+          staff: true,
+          menuItem: {
+            include: { shop: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      return NextResponse.json(orders);
     }
 
-    // 모든 주문을 한번에 로드
-    const allOrders = await prisma.order.findMany({
-      where: { sessionId },
-      include: {
-        staff: true,
-        menuItem: {
-          include: { shop: true },
+    // 직원별 과거 주문 조회 (이름 선택 단계의 호버 카드에서 사용)
+    if (staffId) {
+      const orders = await prisma.order.findMany({
+        where: { staffId },
+        include: {
+          session: {
+            select: {
+              id: true,
+              title: true,
+              date: true,
+            },
+          },
+          menuItem: {
+            select: {
+              id: true,
+              name: true,
+              shop: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      });
 
-    const orders = allOrders;
+      return NextResponse.json(orders);
+    }
 
-    return NextResponse.json(orders);
+    return NextResponse.json(
+      { error: "sessionId 또는 staffId가 필요합니다." },
+      { status: 400 }
+    );
   } catch (error) {
     console.error("Failed to fetch orders:", error);
     return NextResponse.json(
@@ -50,6 +93,7 @@ export async function POST(request: NextRequest) {
       staffDepartment,
       menuItemId,
       customItemName,
+      customShopName,
       quantity,
       options,
       price,
@@ -60,6 +104,7 @@ export async function POST(request: NextRequest) {
       staffDepartment?: string;
       menuItemId?: string;
       customItemName?: string;
+      customShopName?: string;
       quantity: number;
       options: string;
       price: number;
@@ -132,15 +177,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const trimmedShop = customShopName?.trim();
     const order = await prisma.order.create({
       data: {
         sessionId,
         staffId: resolvedStaffId,
+        ...(menuItemId ? { menuItemId } : {}),
+        ...(customItemName ? { customItemName: customItemName.trim() } : {}),
+        ...(trimmedShop ? { customShopName: trimmedShop } : {}),
         quantity: quantity || 1,
         options: options || "",
         price,
-        ...(menuItemId ? { menuItemId } : {}),
-        ...(customItemName?.trim() ? { customItemName: customItemName.trim() } : {}),
       } as any,
       include: {
         staff: true,

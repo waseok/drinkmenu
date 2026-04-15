@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// ISR: 60초마다 재검증 (세션은 자주 변경되지 않음)
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 const staffLiteSelect = {
   id: true,
   name: true,
   department: true,
 } as const;
+
+type StaffGroupRow = {
+  name: string;
+  members: { staffId: string }[];
+};
+
+function getTargetGroupNames(
+  targets: { staffId: string }[],
+  staffGroups: StaffGroupRow[],
+) {
+  if (targets.length === 0) return [];
+  const targetIds = new Set(targets.map((t) => t.staffId));
+  return staffGroups
+    .map((g) => {
+      if (g.members.length === 0) return null;
+      const allMembersIncluded = g.members.every((m) => targetIds.has(m.staffId));
+      return allMembersIncluded ? g.name : null;
+    })
+    .filter((name): name is string => Boolean(name));
+}
 
 function mapSessionListItem(
   s: {
@@ -20,16 +39,16 @@ function mapSessionListItem(
     createdAt: Date;
     updatedAt: Date;
     _count: { orders: number };
-    sessionShops: {
-      shop: { id: string; name: string };
-    }[];
+    sessionShops: unknown;
     sessionTargets: {
       staffId: string;
       staff: { id: string; name: string; department: string };
     }[];
+    orders: { staffId: string }[];
   },
-  orderedStaffIds: Set<string>
+  staffGroups: StaffGroupRow[] = [],
 ) {
+  const orderedStaffIds = new Set(s.orders.map((o) => o.staffId));
   const targets = s.sessionTargets;
   const notOrderedStaff = targets
     .filter((t) => !orderedStaffIds.has(t.staffId))
@@ -38,16 +57,11 @@ function mapSessionListItem(
     orderedStaffIds.has(t.staffId)
   ).length;
 
+  const { orders: _orders, ...rest } = s;
+
   return {
-    id: s.id,
-    title: s.title,
-    date: s.date,
-    deadlineTime: s.deadlineTime,
-    status: s.status,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
-    _count: s._count,
-    sessionShops: s.sessionShops,
+    ...rest,
+    targetGroupNames: getTargetGroupNames(targets, staffGroups),
     targetSummary:
       targets.length === 0
         ? null
@@ -62,44 +76,29 @@ function mapSessionListItem(
 
 export async function GET() {
   try {
-    const sessions = await prisma.orderSession.findMany({
-      orderBy: { date: "desc" },
-      include: {
-        _count: { select: { orders: true } },
-        sessionShops: {
-          include: {
-            shop: {
-              select: { id: true, name: true }, // 이름만 필요
+    const [sessions, staffGroups] = await Promise.all([
+      prisma.orderSession.findMany({
+        orderBy: { date: "desc" },
+        include: {
+          _count: { select: { orders: true } },
+          sessionShops: {
+            include: { shop: true },
+          },
+          sessionTargets: {
+            include: {
+              staff: { select: staffLiteSelect },
             },
           },
+          orders: { select: { staffId: true } },
         },
-        sessionTargets: {
-          include: {
-            staff: { select: staffLiteSelect },
-          },
-        },
-      },
-    });
+      }),
+      prisma.staffGroup.findMany({
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { name: true, members: { select: { staffId: true } } },
+      }),
+    ]);
 
-    // orders 데이터 별도 조회 (큰 세션에서는 수백 개의 주문을 안 로드)
-    const sessionIds = sessions.map((s) => s.id);
-    const orderedStaffsBySession = await prisma.order.findMany({
-      where: { sessionId: { in: sessionIds } },
-      select: { sessionId: true, staffId: true },
-      distinct: ["sessionId", "staffId"], // 중복 제거 (같은 직원이 여러 주문 = 1번만)
-    });
-
-    const orderedStaffMap = new Map<string, Set<string>>();
-    for (const record of orderedStaffsBySession) {
-      if (!orderedStaffMap.has(record.sessionId)) {
-        orderedStaffMap.set(record.sessionId, new Set());
-      }
-      orderedStaffMap.get(record.sessionId)!.add(record.staffId);
-    }
-
-    const payload = sessions.map((s) =>
-      mapSessionListItem(s, orderedStaffMap.get(s.id) || new Set())
-    );
+    const payload = sessions.map((s) => mapSessionListItem(s, staffGroups));
     return NextResponse.json(payload);
   } catch (error) {
     console.error("Failed to fetch sessions:", error);
@@ -152,22 +151,22 @@ export async function POST(request: NextRequest) {
       include: {
         _count: { select: { orders: true } },
         sessionShops: {
-          include: {
-            shop: {
-              select: { id: true, name: true },
-            },
-          },
+          include: { shop: true },
         },
         sessionTargets: {
           include: {
             staff: { select: staffLiteSelect },
           },
         },
+        orders: { select: { staffId: true } },
       },
     });
 
-    // 새로 만든 세션은 주문이 없음
-    return NextResponse.json(mapSessionListItem(session, new Set()), { status: 201 });
+    const staffGroups = await prisma.staffGroup.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { name: true, members: { select: { staffId: true } } },
+    });
+    return NextResponse.json(mapSessionListItem(session, staffGroups), { status: 201 });
   } catch (error) {
     console.error("Failed to create session:", error);
     return NextResponse.json(
@@ -235,30 +234,23 @@ export async function PUT(request: NextRequest) {
         include: {
           _count: { select: { orders: true } },
           sessionShops: {
-            include: {
-              shop: {
-                select: { id: true, name: true },
-              },
-            },
+            include: { shop: true },
           },
           sessionTargets: {
             include: {
               staff: { select: staffLiteSelect },
             },
           },
+          orders: { select: { staffId: true } },
         },
       });
     });
 
-    // 수정된 세션의 주문 현황 조회
-    const orders = await prisma.order.findMany({
-      where: { sessionId: id },
-      select: { staffId: true },
-      distinct: ["staffId"],
+    const staffGroups = await prisma.staffGroup.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { name: true, members: { select: { staffId: true } } },
     });
-    const orderedStaffIds = new Set(orders.map((o) => o.staffId));
-
-    return NextResponse.json(mapSessionListItem(session, orderedStaffIds));
+    return NextResponse.json(mapSessionListItem(session, staffGroups));
   } catch (error) {
     console.error("Failed to update session:", error);
     return NextResponse.json(
