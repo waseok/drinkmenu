@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
         quantity: quantity || 1,
         options: options || "",
         price,
-      },
+      } as any,
       include: {
         staff: true,
         menuItem: menuItemId ? { include: { shop: true } } : false,

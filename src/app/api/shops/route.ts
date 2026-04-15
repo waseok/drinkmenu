@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// ISR: 300초(5분)마다 재검증 (메뉴 정보는 관리자만 수정)
+export const revalidate = 300;
+
 const MAX_MENU_IMAGES = 3;
 
 function normalizeMenuImageUrlsInput(body: Record<string, unknown>): string[] {
