@@ -1,0 +1,17 @@
+export const GONGCHA_TOPPING_OPTIONS = [
+  { name: "", price: 0 },
+  { name: "펄", price: 600 },
+  { name: "미니펄", price: 700 },
+  { name: "화이트펄", price: 700 },
+  { name: "알로에", price: 700 },
+  { name: "코코넛", price: 700 },
+  { name: "밀크폼", price: 700 },
+  { name: "치즈폼", price: 900 },
+  { name: "펄*2", price: 1200 },
+  { name: "미니펄*2", price: 1400 },
+  { name: "화이트펄*2", price: 1400 },
+  { name: "알로에*2", price: 1400 },
+  { name: "코코넛*2", price: 1400 },
+  { name: "밀크폼*2", price: 1400 },
+  { name: "치즈폼*2", price: 1800 },
+] as const;
