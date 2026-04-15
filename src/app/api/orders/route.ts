@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       staffDepartment,
       menuItemId,
       customItemName,
+      customShopName,
       quantity,
       options,
       price,
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
       staffDepartment?: string;
       menuItemId?: string;
       customItemName?: string;
+      customShopName?: string;
       quantity: number;
       options: string;
       price: number;
@@ -175,12 +177,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const trimmedShop = customShopName?.trim();
     const order = await prisma.order.create({
       data: {
         sessionId,
         staffId: resolvedStaffId,
         ...(menuItemId ? { menuItemId } : {}),
         ...(customItemName ? { customItemName: customItemName.trim() } : {}),
+        ...(trimmedShop ? { customShopName: trimmedShop } : {}),
         quantity: quantity || 1,
         options: options || "",
         price,

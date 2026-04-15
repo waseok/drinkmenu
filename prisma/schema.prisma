@@ -120,6 +120,8 @@ model Order {
   staffId        String
   menuItemId     String?
   customItemName String?
+  /** 직접 입력 주문 시, 선택 중이던 세션 매장명(취합 화면에서 업체 구분용) */
+  customShopName String?
   quantity       Int          @default(1)
   options        String       @default("")
   price          Int

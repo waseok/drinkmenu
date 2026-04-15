@@ -32,7 +32,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -108,6 +107,7 @@ interface OrderItem {
   staffId: string;
   menuItemId: string | null;
   customItemName?: string | null;
+  customShopName?: string | null;
   quantity: number;
   options: string;
   price: number;
@@ -143,6 +143,15 @@ interface StaffHistoryOrder {
     name: string;
     shop: { id: string; name: string };
   } | null;
+}
+
+/** 메뉴에 없는 음료를 직접 적어 담는 줄 (제출 시 customItemName + 단가) */
+interface CustomLineOrder {
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  options: string;
 }
 
 interface CartItem {
@@ -251,8 +260,11 @@ export default function OrderPage({
   const [manualName, setManualName] = useState("");
   const [manualDepartment, setManualDepartment] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [customOrders, setCustomOrders] = useState<{ id: string; text: string }[]>([]);
-  const [customOrderInput, setCustomOrderInput] = useState("");
+  const [customLines, setCustomLines] = useState<CustomLineOrder[]>([]);
+  const [customDraftName, setCustomDraftName] = useState("");
+  const [customDraftQty, setCustomDraftQty] = useState("1");
+  const [customDraftPrice, setCustomDraftPrice] = useState("");
+  const [customDraftOptions, setCustomDraftOptions] = useState("");
   const [existingOrders, setExistingOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -465,22 +477,27 @@ export default function OrderPage({
 
   const handleChangeStaff = useCallback(() => {
     if (
-      cart.length > 0 &&
-      !confirm("이름을 변경하면 장바구니가 초기화됩니다. 계속하시겠습니까?")
+      (cart.length > 0 || customLines.length > 0) &&
+      !confirm(
+        "이름을 변경하면 장바구니와 직접 입력 항목이 초기화됩니다. 계속하시겠습니까?",
+      )
     ) {
       return;
     }
     setSelectedStaff(null);
     setCart([]);
-    setCustomOrders([]);
-    setCustomOrderInput("");
+    setCustomLines([]);
+    setCustomDraftName("");
+    setCustomDraftQty("1");
+    setCustomDraftPrice("");
+    setCustomDraftOptions("");
     setExistingOrders([]);
     setSearchQuery("");
     setManualName("");
     setManualDepartment("");
     setActiveShopIdx(0);
     setStep(1);
-  }, [cart.length]);
+  }, [cart.length, customLines.length]);
 
   const addToCart = useCallback((menuItem: MenuItem, shopName: string) => {
     const useGongchaOption = isGongchaShop(shopName);
@@ -561,6 +578,62 @@ export default function OrderPage({
     setCart((prev) => prev.filter((c) => c.cartId !== cartId));
   }, []);
 
+  const updateCustomLineQty = useCallback((id: string, delta: number) => {
+    setCustomLines((prev) =>
+      prev
+        .map((c) =>
+          c.id === id
+            ? { ...c, quantity: Math.max(0, c.quantity + delta) }
+            : c,
+        )
+        .filter((c) => c.quantity > 0),
+    );
+  }, []);
+
+  const updateCustomLineUnitPrice = useCallback((id: string, raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    const v = digits === "" ? 0 : parseInt(digits, 10);
+    setCustomLines((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, unitPrice: Number.isFinite(v) ? Math.max(0, v) : 0 }
+          : c,
+      ),
+    );
+  }, []);
+
+  const removeCustomLine = useCallback((id: string) => {
+    setCustomLines((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const addCustomLineFromDraft = useCallback(() => {
+    const name = customDraftName.trim();
+    if (!name) {
+      toast.error("음료명을 입력해주세요.");
+      return;
+    }
+    const quantity = Math.max(
+      1,
+      parseInt(String(customDraftQty).replace(/\D/g, ""), 10) || 1,
+    );
+    const pRaw = String(customDraftPrice).replace(/\D/g, "");
+    const unitPrice = pRaw === "" ? 0 : Math.max(0, parseInt(pRaw, 10) || 0);
+    setCustomLines((prev) => [
+      ...prev,
+      {
+        id: `custom-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name,
+        quantity,
+        unitPrice,
+        options: customDraftOptions.trim(),
+      },
+    ]);
+    setCustomDraftName("");
+    setCustomDraftQty("1");
+    setCustomDraftPrice("");
+    setCustomDraftOptions("");
+  }, [customDraftName, customDraftQty, customDraftPrice, customDraftOptions]);
+
   const handleScrollToCart = useCallback(() => {
     cartSectionRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -578,10 +651,15 @@ export default function OrderPage({
   }, []);
 
   const handleSubmitOrder = useCallback(async () => {
-    if (!selectedStaff || (cart.length === 0 && customOrders.length === 0)) return;
+    if (!selectedStaff || (cart.length === 0 && customLines.length === 0)) return;
+    if (!session) return;
     setSubmitting(true);
     try {
       const isManual = Boolean(selectedStaff.isManual);
+      const shopLabel =
+        session.sessionShops[activeShopIdx]?.shop?.name ??
+        session.sessionShops[0]?.shop?.name ??
+        undefined;
       const results = await Promise.all([
         ...cart.map((item) =>
           fetch("/api/orders", {
@@ -599,7 +677,7 @@ export default function OrderPage({
             }),
           }),
         ),
-        ...customOrders.map((item) =>
+        ...customLines.map((item) =>
           fetch("/api/orders", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -608,10 +686,11 @@ export default function OrderPage({
               staffId: isManual ? undefined : selectedStaff.id,
               staffName: selectedStaff.name,
               staffDepartment: selectedStaff.department,
-              customItemName: item.text,
-              quantity: 1,
-              options: "",
-              price: 0,
+              customItemName: item.name,
+              quantity: item.quantity,
+              options: item.options,
+              price: item.unitPrice,
+              ...(shopLabel ? { customShopName: shopLabel } : {}),
             }),
           }),
         ),
@@ -632,8 +711,11 @@ export default function OrderPage({
       toast.success("주문이 완료되었습니다!");
       setCompletedOrdersOpen(false);
       setCart([]);
-      setCustomOrders([]);
-      setCustomOrderInput("");
+      setCustomLines([]);
+      setCustomDraftName("");
+      setCustomDraftQty("1");
+      setCustomDraftPrice("");
+      setCustomDraftOptions("");
       await fetchExistingOrders(resolvedStaff?.id ?? (isManual ? null : selectedStaff.id));
       void refreshSessionOrders();
       setStep(3);
@@ -642,7 +724,16 @@ export default function OrderPage({
     } finally {
       setSubmitting(false);
     }
-  }, [selectedStaff, cart, sessionId, fetchExistingOrders, refreshSessionOrders]);
+  }, [
+    selectedStaff,
+    cart,
+    customLines,
+    sessionId,
+    session,
+    activeShopIdx,
+    fetchExistingOrders,
+    refreshSessionOrders,
+  ]);
 
   const handleUpdateOrderQty = useCallback(
     async (orderId: string, newQty: number) => {
@@ -732,6 +823,12 @@ export default function OrderPage({
 
   const cartTotal = cart.reduce((s, c) => s + getCartUnitPrice(c) * c.quantity, 0);
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
+  const customLinesSubtotal = customLines.reduce(
+    (s, c) => s + c.unitPrice * c.quantity,
+    0,
+  );
+  const customLineQtySum = customLines.reduce((s, c) => s + c.quantity, 0);
+  const checkoutTotal = cartTotal + customLinesSubtotal;
 
   // 마감 시간까지 남은 시간 계산
   const [deadlineCountdown, setDeadlineCountdown] = useState<string | null>(null);
@@ -973,10 +1070,10 @@ export default function OrderPage({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {step === 2 && cartCount > 0 && (
+              {step === 2 && (cartCount > 0 || customLines.length > 0) && (
                 <Button variant="secondary" size="sm" onClick={handleScrollToCart}>
                   <ShoppingCartIcon className="mr-1.5 size-4" />
-                  장바구니 {cartCount}
+                  담은 품목 {cartCount + customLineQtySum}
                 </Button>
               )}
               <Link href="/order">
@@ -1051,9 +1148,9 @@ export default function OrderPage({
                 전화: {activeShop.phone}
               </Badge>
             )}
-            {step === 2 && cartCount > 0 && (
+            {step === 2 && (cartCount > 0 || customLines.length > 0) && (
               <Badge variant="outline" className="rounded-full px-3 py-1">
-                장바구니: {cartCount}개 · {formatPrice(cartTotal)}
+                합계: {cartCount + customLineQtySum}잔 · {formatPrice(checkoutTotal)}
               </Badge>
             )}
           </div>
@@ -1256,7 +1353,10 @@ export default function OrderPage({
                             </span>
                           )}
                           <div className="mt-0.5 text-xs text-muted-foreground">
-                            {formatPrice(order.price)} × {order.quantity} = {formatPrice(order.price * order.quantity)}
+                            {order.menuItem?.shop?.name ?? order.customShopName ?? "직접 입력"}
+                            {" · "}
+                            {formatPrice(order.price)} × {order.quantity} ={" "}
+                            {formatPrice(order.price * order.quantity)}
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
@@ -1468,61 +1568,145 @@ export default function OrderPage({
               </>
             )}
 
-            {/* ─── Cart section ─────────────────────────────────────── */}
-            {/* ─── 직접 주문 입력 섹션 ──────────────────────────────── */}
+            {/* ─── 직접 입력 + 메뉴 장바구니 (스크롤 앵커) ───────────────── */}
+            <div ref={cartSectionRef} className="space-y-4 scroll-mt-28">
             <Separator />
             <div>
               <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
                 <PlusIcon className="size-4" />
                 직접 입력
                 <span className="text-xs font-normal text-muted-foreground">
-                  (등록 메뉴 외 주문)
+                  (메뉴판에 없을 때 음료명·수량·가격)
                 </span>
               </h3>
-              <div className="flex gap-2">
-                <Textarea
-                  placeholder="예: 아이스아메리카노 1잔, 카페라떼 1잔"
-                  value={customOrderInput}
-                  onChange={(e) => setCustomOrderInput(e.target.value)}
-                  className="min-h-[60px] flex-1 resize-none text-sm"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="self-end"
-                  onClick={() => {
-                    const text = customOrderInput.trim();
-                    if (!text) return;
-                    setCustomOrders((prev) => [
-                      ...prev,
-                      { id: `custom-${Date.now()}`, text },
-                    ]);
-                    setCustomOrderInput("");
-                  }}
-                >
-                  추가
-                </Button>
+              <p className="mb-3 text-xs text-muted-foreground">
+                위에서 고른 매장(
+                {activeShop?.name ?? "—"}
+                )으로 취합됩니다. 다른 매장이면 탭을 먼저 바꿔 주세요.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="grid gap-1 text-xs">
+                  <span className="text-muted-foreground">음료명</span>
+                  <Input
+                    placeholder="예: 아이스 아메리카노"
+                    value={customDraftName}
+                    onChange={(e) => setCustomDraftName(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs">
+                  <span className="text-muted-foreground">단가(원)</span>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="4500"
+                    value={customDraftPrice}
+                    onChange={(e) => setCustomDraftPrice(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs">
+                  <span className="text-muted-foreground">수량</span>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="1"
+                    value={customDraftQty}
+                    onChange={(e) => setCustomDraftQty(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs sm:col-span-2">
+                  <span className="text-muted-foreground">옵션·메모 (선택)</span>
+                  <Input
+                    placeholder="예: 샷 추가, 덜 달게"
+                    value={customDraftOptions}
+                    onChange={(e) => setCustomDraftOptions(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </label>
               </div>
-              {customOrders.length > 0 && (
-                <div className="mt-2 space-y-1.5">
-                  {customOrders.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm"
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={addCustomLineFromDraft}
+              >
+                장바구니에 담기
+              </Button>
+
+              {customLines.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    직접 입력 품목 ({customLineQtySum}잔)
+                  </p>
+                  {customLines.map((line) => (
+                    <Card
+                      key={line.id}
+                      size="sm"
+                      className="border-dashed border-amber-200/80 bg-amber-50/20 dark:border-amber-900 dark:bg-amber-950/15"
                     >
-                      <span className="flex-1">{item.text}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() =>
-                          setCustomOrders((prev) =>
-                            prev.filter((o) => o.id !== item.id)
-                          )
-                        }
-                      >
-                        <XIcon className="size-3.5" />
-                      </Button>
-                    </div>
+                      <CardContent className="space-y-2 pt-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{line.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {activeShop?.name ?? "매장 미지정"} · 단가 수정 가능
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            type="button"
+                            onClick={() => removeCustomLine(line.id)}
+                          >
+                            <XIcon className="size-3.5" />
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-1 rounded-md border bg-background">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => updateCustomLineQty(line.id, -1)}
+                            >
+                              <MinusIcon className="size-3" />
+                            </Button>
+                            <span className="w-6 text-center text-sm font-medium">
+                              {line.quantity}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => updateCustomLineQty(line.id, 1)}
+                            >
+                              <PlusIcon className="size-3" />
+                            </Button>
+                          </div>
+                          <label className="flex items-center gap-1.5 text-xs">
+                            <span className="text-muted-foreground">단가</span>
+                            <Input
+                              inputMode="numeric"
+                              className="h-8 w-24 text-right text-xs"
+                              value={String(line.unitPrice)}
+                              onChange={(e) =>
+                                updateCustomLineUnitPrice(line.id, e.target.value)
+                              }
+                            />
+                            <span className="text-muted-foreground">원</span>
+                          </label>
+                          <span className="ml-auto text-sm font-semibold">
+                            {formatPrice(line.unitPrice * line.quantity)}
+                          </span>
+                        </div>
+                        {line.options ? (
+                          <p className="text-xs text-muted-foreground">
+                            옵션: {line.options}
+                          </p>
+                        ) : null}
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               )}
@@ -1531,7 +1715,7 @@ export default function OrderPage({
             {cart.length > 0 && (
               <>
                 <Separator />
-                <div ref={cartSectionRef}>
+                <div>
                   <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
                     <ShoppingCartIcon className="size-4" />
                     장바구니
@@ -1685,6 +1869,7 @@ export default function OrderPage({
                 </div>
               </>
             )}
+            </div>
           </div>
         )}
 
@@ -1743,7 +1928,9 @@ export default function OrderPage({
                                 </span>
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {order.menuItem?.shop?.name ?? "직접 입력"}
+                                {order.menuItem?.shop?.name ??
+                                  order.customShopName ??
+                                  "직접 입력"}
                                 {order.options && ` · ${order.options}`}
                               </p>
                             </div>
@@ -1786,6 +1973,11 @@ export default function OrderPage({
               <Button
                 onClick={() => {
                   setCart([]);
+                  setCustomLines([]);
+                  setCustomDraftName("");
+                  setCustomDraftQty("1");
+                  setCustomDraftPrice("");
+                  setCustomDraftOptions("");
                   setStep(2);
                 }}
                 className="w-full"
@@ -1798,6 +1990,11 @@ export default function OrderPage({
                 onClick={() => {
                   setSelectedStaff(null);
                   setCart([]);
+                  setCustomLines([]);
+                  setCustomDraftName("");
+                  setCustomDraftQty("1");
+                  setCustomDraftPrice("");
+                  setCustomDraftOptions("");
                   setExistingOrders([]);
                   setSearchQuery("");
                   setManualName("");
@@ -1827,14 +2024,14 @@ export default function OrderPage({
       </main>
 
       {/* ── Sticky bottom bar (cart summary) ───────────────────────────── */}
-      {step === 2 && (cart.length > 0 || customOrders.length > 0) && (
+      {step === 2 && (cart.length > 0 || customLines.length > 0) && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
             <div>
               <p className="text-xs text-muted-foreground">
-                {cartCount + customOrders.length}개 선택
+                {cartCount + customLineQtySum}잔 · {cart.length + customLines.length}줄
               </p>
-              <p className="text-base font-bold">{formatPrice(cartTotal)}</p>
+              <p className="text-base font-bold">{formatPrice(checkoutTotal)}</p>
             </div>
             <Button
               onClick={handleSubmitOrder}
@@ -2022,22 +2219,6 @@ export default function OrderPage({
         </DialogContent>
       </Dialog>
 
-      {/* ── 모바일 장바구니 Sticky 바 (Step 2, 카트 항목 있을 때) ──── */}
-      {step === 2 && cartCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 py-3 backdrop-blur sm:hidden">
-          <button
-            type="button"
-            onClick={handleScrollToCart}
-            className="flex w-full items-center justify-between rounded-2xl bg-amber-500 px-4 py-3 text-white active:bg-amber-600"
-          >
-            <div className="flex items-center gap-2">
-              <ShoppingCartIcon className="size-5" />
-              <span className="font-semibold">{cartCount}개 선택됨</span>
-            </div>
-            <span className="font-bold">{formatPrice(cartTotal)}</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

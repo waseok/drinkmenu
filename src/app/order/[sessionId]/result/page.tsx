@@ -53,12 +53,18 @@ interface Order {
   staffId: string;
   menuItemId: string | null;
   customItemName: string | null;
+  customShopName: string | null;
   quantity: number;
   options: string;
   price: number;
   createdAt: string;
   staff: Staff;
   menuItem: MenuItem | null;
+}
+
+/** 취합·표에서 업체 열에 쓰는 이름 (메뉴 주문 = 매장명, 직접 입력 = 담을 때 고른 매장) */
+function shopLabelForOrder(o: Order) {
+  return o.menuItem?.shop.name ?? o.customShopName ?? "직접 입력";
 }
 
 interface SessionTargetRow {
@@ -135,7 +141,7 @@ export default function ResultPage({
   }, [fetchData]);
 
   const shopGroups = orders.reduce<Record<string, Order[]>>((acc, order) => {
-    const shopName = order.menuItem?.shop.name ?? "직접 입력";
+    const shopName = shopLabelForOrder(order);
     if (!acc[shopName]) acc[shopName] = [];
     acc[shopName].push(order);
     return acc;
@@ -145,7 +151,9 @@ export default function ResultPage({
     ([shopName, shopOrders]) => ({
       shopName,
       orders: shopOrders,
-      phone: shopOrders[0]?.menuItem?.shop.phone || "",
+      phone:
+        shopOrders.find((o) => o.menuItem?.shop.phone)?.menuItem?.shop.phone ||
+        "",
       subtotal: shopOrders.reduce((sum, o) => sum + o.price * o.quantity, 0),
       count: shopOrders.reduce((sum, o) => sum + o.quantity, 0),
     })
@@ -238,7 +246,7 @@ export default function ResultPage({
       "─".repeat(40),
       ...orders.map(
         (o, i) =>
-          `${i + 1}. ${o.staff.department} ${o.staff.name} | ${o.menuItem?.shop.name ?? "직접 입력"} - ${o.menuItem?.name ?? o.customItemName ?? "직접 입력"}${o.quantity > 1 ? ` x${o.quantity}` : ""}${o.options ? ` (${o.options})` : ""} | ${formatPrice(o.price * o.quantity)}`
+          `${i + 1}. ${o.staff.department} ${o.staff.name} | ${shopLabelForOrder(o)} - ${o.menuItem?.name ?? o.customItemName ?? "직접 입력"}${o.quantity > 1 ? ` x${o.quantity}` : ""}${o.options ? ` (${o.options})` : ""} | ${formatPrice(o.price * o.quantity)}`
       ),
       "─".repeat(40),
       "",
@@ -507,9 +515,9 @@ export default function ResultPage({
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className={shopColorMap[order.menuItem?.shop.name ?? "직접 입력"]}
+                            className={shopColorMap[shopLabelForOrder(order)]}
                           >
-                            {order.menuItem?.shop.name ?? "직접 입력"}
+                            {shopLabelForOrder(order)}
                           </Badge>
                         </TableCell>
                         <TableCell>{order.menuItem?.name ?? order.customItemName ?? "직접 입력"}</TableCell>
