@@ -16,16 +16,46 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const orders = await prisma.order.findMany({
-      where: { sessionId },
-      include: {
-        staff: true,
-        menuItem: {
-          include: { shop: true },
+    // menuItem이 있는 주문과 없는 주문을 분리해서 로드
+    const [ordersWithMenuItems, ordersCustom] = await Promise.all([
+      prisma.order.findMany({
+        where: { sessionId, menuItemId: { not: null } },
+        include: {
+          staff: true,
+          menuItem: {
+            include: { shop: true },
+          },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.order.findMany({
+        where: { sessionId, menuItemId: null },
+        select: {
+          id: true,
+          sessionId: true,
+          staffId: true,
+          staff: true,
+          menuItemId: true,
+          customItemName: true,
+          quantity: true,
+          options: true,
+          price: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+
+    // menuItem은 null이므로 추가
+    const ordersCustomWithNull = ordersCustom.map((o) => ({
+      ...o,
+      menuItem: null,
+    }));
+
+    const orders = [...ordersWithMenuItems, ...ordersCustomWithNull].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+    );
 
     return NextResponse.json(orders);
   } catch (error) {

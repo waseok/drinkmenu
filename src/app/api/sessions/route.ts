@@ -20,15 +20,16 @@ function mapSessionListItem(
     createdAt: Date;
     updatedAt: Date;
     _count: { orders: number };
-    sessionShops: unknown;
+    sessionShops: {
+      shop: { id: string; name: string };
+    }[];
     sessionTargets: {
       staffId: string;
       staff: { id: string; name: string; department: string };
     }[];
-    orders: { staffId: string }[];
-  }
+  },
+  orderedStaffIds: Set<string>
 ) {
-  const orderedStaffIds = new Set(s.orders.map((o) => o.staffId));
   const targets = s.sessionTargets;
   const notOrderedStaff = targets
     .filter((t) => !orderedStaffIds.has(t.staffId))
@@ -37,10 +38,16 @@ function mapSessionListItem(
     orderedStaffIds.has(t.staffId)
   ).length;
 
-  const { orders: _orders, ...rest } = s;
-
   return {
-    ...rest,
+    id: s.id,
+    title: s.title,
+    date: s.date,
+    deadlineTime: s.deadlineTime,
+    status: s.status,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    _count: s._count,
+    sessionShops: s.sessionShops,
     targetSummary:
       targets.length === 0
         ? null
@@ -60,18 +67,39 @@ export async function GET() {
       include: {
         _count: { select: { orders: true } },
         sessionShops: {
-          include: { shop: true },
+          include: {
+            shop: {
+              select: { id: true, name: true }, // 이름만 필요
+            },
+          },
         },
         sessionTargets: {
           include: {
             staff: { select: staffLiteSelect },
           },
         },
-        orders: { select: { staffId: true } },
       },
     });
 
-    const payload = sessions.map(mapSessionListItem);
+    // orders 데이터 별도 조회 (큰 세션에서는 수백 개의 주문을 안 로드)
+    const sessionIds = sessions.map((s) => s.id);
+    const orderedStaffsBySession = await prisma.order.findMany({
+      where: { sessionId: { in: sessionIds } },
+      select: { sessionId: true, staffId: true },
+      distinct: ["sessionId", "staffId"], // 중복 제거 (같은 직원이 여러 주문 = 1번만)
+    });
+
+    const orderedStaffMap = new Map<string, Set<string>>();
+    for (const record of orderedStaffsBySession) {
+      if (!orderedStaffMap.has(record.sessionId)) {
+        orderedStaffMap.set(record.sessionId, new Set());
+      }
+      orderedStaffMap.get(record.sessionId)!.add(record.staffId);
+    }
+
+    const payload = sessions.map((s) =>
+      mapSessionListItem(s, orderedStaffMap.get(s.id) || new Set())
+    );
     return NextResponse.json(payload);
   } catch (error) {
     console.error("Failed to fetch sessions:", error);
@@ -124,18 +152,22 @@ export async function POST(request: NextRequest) {
       include: {
         _count: { select: { orders: true } },
         sessionShops: {
-          include: { shop: true },
+          include: {
+            shop: {
+              select: { id: true, name: true },
+            },
+          },
         },
         sessionTargets: {
           include: {
             staff: { select: staffLiteSelect },
           },
         },
-        orders: { select: { staffId: true } },
       },
     });
 
-    return NextResponse.json(mapSessionListItem(session), { status: 201 });
+    // 새로 만든 세션은 주문이 없음
+    return NextResponse.json(mapSessionListItem(session, new Set()), { status: 201 });
   } catch (error) {
     console.error("Failed to create session:", error);
     return NextResponse.json(
@@ -203,19 +235,30 @@ export async function PUT(request: NextRequest) {
         include: {
           _count: { select: { orders: true } },
           sessionShops: {
-            include: { shop: true },
+            include: {
+              shop: {
+                select: { id: true, name: true },
+              },
+            },
           },
           sessionTargets: {
             include: {
               staff: { select: staffLiteSelect },
             },
           },
-          orders: { select: { staffId: true } },
         },
       });
     });
 
-    return NextResponse.json(mapSessionListItem(session));
+    // 수정된 세션의 주문 현황 조회
+    const orders = await prisma.order.findMany({
+      where: { sessionId: id },
+      select: { staffId: true },
+      distinct: ["staffId"],
+    });
+    const orderedStaffIds = new Set(orders.map((o) => o.staffId));
+
+    return NextResponse.json(mapSessionListItem(session, orderedStaffIds));
   } catch (error) {
     console.error("Failed to update session:", error);
     return NextResponse.json(
