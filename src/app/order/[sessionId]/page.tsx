@@ -332,8 +332,20 @@ export default function OrderPage({
         if (cancelled) return;
 
         if (!sessionRes.ok) {
-          const data = await sessionRes.json();
-          setError(data.error || "세션을 찾을 수 없습니다.");
+          const data = await sessionRes.json().catch(() => ({}));
+          setError(
+            (data as { error?: string }).error || "세션을 찾을 수 없습니다.",
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (!staffRes.ok) {
+          const data = await staffRes.json().catch(() => ({}));
+          setError(
+            (data as { error?: string }).error ||
+              "교직원 목록을 불러오는데 실패했습니다.",
+          );
           setLoading(false);
           return;
         }

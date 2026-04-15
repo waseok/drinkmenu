@@ -18,8 +18,9 @@ function getAccessScope(pathname: string, method: string): "admin" | "order" | n
     return "order";
   }
 
-  if (pathname.startsWith("/api/sessions/") && method === "GET") {
-    return "order";
+  /** 세션 조회(GET)는 주문 화면에서도 필요. 생성·수정·삭제는 관리자만. */
+  if (pathname.startsWith("/api/sessions")) {
+    return method === "GET" ? "order" : "admin";
   }
 
   if (pathname.startsWith("/api/staff/groups")) {
@@ -29,7 +30,6 @@ function getAccessScope(pathname: string, method: string): "admin" | "order" | n
   if (
     pathname.startsWith("/api/shops") ||
     pathname.startsWith("/api/crawl") ||
-    pathname === "/api/sessions" ||
     pathname.startsWith("/api/staff/upload")
   ) {
     return "admin";
