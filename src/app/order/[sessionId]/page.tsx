@@ -22,6 +22,8 @@ import {
   PhoneIcon,
   CopyIcon,
   HistoryIcon,
+  ChevronDownIcon,
+  ImageIcon,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +35,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   HoverCard,
   HoverCardContent,
@@ -127,7 +128,14 @@ export default function OrderPage({
   } | null>(null);
   /** 메뉴판 라이트박스 배율 100~300% (25% 단계) */
   const [lightboxZoom, setLightboxZoom] = useState(100);
+  /** 메뉴판 사진 영역 (기본 접힘 — 음료 목록을 먼저 보이게) */
+  const [menuPhotosOpen, setMenuPhotosOpen] = useState(false);
   const cartSectionRef = useRef<HTMLDivElement | null>(null);
+
+  /** 매장 탭을 바꾸면 메뉴판 사진도 다시 접음 */
+  useEffect(() => {
+    setMenuPhotosOpen(false);
+  }, [activeShopIdx]);
 
   /** 라이트박스를 열거나 다른 이미지로 바꿀 때 배율 초기화 */
   useEffect(() => {
@@ -1302,11 +1310,11 @@ export default function OrderPage({
                   if (!shop) return null;
                   const categories = groupByCategory(shop.menuItems);
                   const catEntries = Object.entries(categories);
+                  const menuItemCount = shop.menuItems.length;
+                  const hasMenuImages =
+                    shop.menuImageUrls && shop.menuImageUrls.length > 0;
 
-                  if (
-                    catEntries.length === 0 &&
-                    (!shop.menuImageUrls || shop.menuImageUrls.length === 0)
-                  ) {
+                  if (catEntries.length === 0 && !hasMenuImages) {
                     return (
                       <p className="py-8 text-center text-sm text-muted-foreground">
                         등록된 메뉴가 없습니다.
@@ -1315,27 +1323,136 @@ export default function OrderPage({
                   }
 
                   return (
-                    <ScrollArea className="max-h-[58vh] overflow-y-auto">
-                      <div className="space-y-5">
-                        {shop.menuImageUrls && shop.menuImageUrls.length > 0 && (
-                          <Card className="overflow-hidden border-0 shadow-md">
-                            <CardHeader className="border-b bg-background/90">
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                  <CardTitle className="text-base">
-                                    {shop.name} 메뉴판
-                                    {shop.menuImageUrls.length > 1 && (
-                                      <span className="ml-1 text-xs font-normal text-muted-foreground">
-                                        ({shop.menuImageUrls.length}장)
-                                      </span>
-                                    )}
-                                  </CardTitle>
-                                  {shop.phone && (
-                                    <p className="text-xs font-normal text-muted-foreground">
-                                      전화 주문: {shop.phone}
-                                    </p>
-                                  )}
+                    <div className="space-y-4">
+                      {/* ── 음료 선택 (메인) ───────────────────────────── */}
+                      {catEntries.length > 0 && (
+                        <Card className="overflow-hidden border-amber-200/80 shadow-md dark:border-amber-900/40">
+                          <CardHeader className="border-b border-amber-100/80 bg-gradient-to-r from-amber-50/80 to-background pb-3 dark:border-amber-900/30 dark:from-amber-950/30">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <CardTitle className="text-base font-bold">
+                                  음료 선택
+                                </CardTitle>
+                                <p className="mt-1 text-xs font-normal text-muted-foreground">
+                                  원하는 음료를 탭하면 장바구니에 담깁니다
+                                </p>
+                              </div>
+                              <Badge
+                                variant="secondary"
+                                className="shrink-0 rounded-full px-2.5 py-0.5"
+                              >
+                                {menuItemCount}종
+                              </Badge>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-5 p-4 pt-4">
+                            {catEntries.map(([cat, items]) => (
+                              <div key={cat}>
+                                <div className="mb-2.5 flex items-center gap-2">
+                                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase dark:bg-amber-900/40 dark:text-amber-200">
+                                    {cat}
+                                  </span>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {items.length}개
+                                  </span>
                                 </div>
+                                <div className="grid gap-2">
+                                  {items.map((item) => (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      onClick={() => addToCart(item, shop.name)}
+                                      className="group flex items-center gap-3 rounded-2xl border-2 border-transparent bg-card p-3.5 text-left shadow-sm ring-1 ring-border/60 transition-all hover:border-amber-300/80 hover:bg-amber-50/50 hover:ring-amber-200 active:scale-[0.99] dark:hover:bg-amber-950/20 dark:hover:ring-amber-800/50"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <span className="text-[15px] font-semibold leading-tight">
+                                            {item.name}
+                                          </span>
+                                          {item.isIce && (
+                                            <Badge
+                                              variant="outline"
+                                              className="border-sky-300 text-[10px] text-sky-600 dark:border-sky-700 dark:text-sky-400"
+                                            >
+                                              ICE
+                                            </Badge>
+                                          )}
+                                          {item.isHot && (
+                                            <Badge
+                                              variant="outline"
+                                              className="border-rose-300 text-[10px] text-rose-600 dark:border-rose-700 dark:text-rose-400"
+                                            >
+                                              HOT
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                          탭하여 담기 · 핫/아이스는 장바구니에서 선택
+                                        </p>
+                                      </div>
+                                      <div className="flex shrink-0 flex-col items-end gap-1">
+                                        <span className="text-sm font-bold text-amber-800 dark:text-amber-200">
+                                          {formatPrice(item.price)}
+                                        </span>
+                                        <span className="flex size-8 items-center justify-center rounded-full bg-amber-500 text-white shadow-sm transition-transform group-hover:scale-105 group-active:scale-95">
+                                          <PlusIcon className="size-4" />
+                                        </span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* ── 메뉴판 사진 (접힘 기본, 펼치면 미리보기 → 탭 시 확대) ── */}
+                      {hasMenuImages && (
+                        <Collapsible
+                          open={menuPhotosOpen}
+                          onOpenChange={setMenuPhotosOpen}
+                        >
+                          <Card className="overflow-hidden border-dashed border-muted-foreground/25 bg-muted/20">
+                            <CollapsibleTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+                                />
+                              }
+                            >
+                              <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border bg-white shadow-sm">
+                                <Image
+                                  src={shop.menuImageUrls[0]!}
+                                  alt={`${shop.name} 메뉴판 미리보기`}
+                                  width={112}
+                                  height={112}
+                                  unoptimized
+                                  className="size-full object-cover"
+                                />
+                                <span className="absolute inset-0 flex items-center justify-center bg-black/35">
+                                  <ImageIcon className="size-5 text-white" />
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium">
+                                  {shop.name} 메뉴판 사진
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {shop.menuImageUrls.length}장 · 펼쳐서 보기 ·
+                                  탭하면 확대
+                                </p>
+                              </div>
+                              <ChevronDownIcon
+                                className={cn(
+                                  "size-5 shrink-0 text-muted-foreground transition-transform duration-200",
+                                  menuPhotosOpen && "rotate-180",
+                                )}
+                              />
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="space-y-3 border-t px-4 pt-3 pb-4">
                                 {shop.phone && (
                                   <div className="flex flex-wrap gap-2">
                                     <a
@@ -1351,6 +1468,7 @@ export default function OrderPage({
                                     <Button
                                       variant="outline"
                                       size="sm"
+                                      type="button"
                                       onClick={() => handleCopyPhone(shop.phone)}
                                     >
                                       <CopyIcon className="mr-1.5 size-4" />
@@ -1358,84 +1476,41 @@ export default function OrderPage({
                                     </Button>
                                   </div>
                                 )}
-                              </div>
-                            </CardHeader>
-                            <CardContent className="divide-y p-0">
-                              {shop.menuImageUrls.map((url, imgIdx) => (
-                                <button
-                                  key={`${shop.id}-menu-img-${imgIdx}`}
-                                  type="button"
-                                  className="relative block w-full cursor-zoom-in border-0 bg-white p-0 text-left focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-                                  aria-label={`${shop.name} 메뉴판 ${imgIdx + 1} 확대 보기`}
-                                  onClick={() =>
-                                    setMenuLightbox({
-                                      urls: shop.menuImageUrls,
-                                      index: imgIdx,
-                                      shopName: shop.name,
-                                    })
-                                  }
-                                >
-                                  <Image
-                                    src={url}
-                                    alt={`${shop.name} 메뉴판 ${imgIdx + 1}`}
-                                    width={1200}
-                                    height={1600}
-                                    unoptimized
-                                    className="pointer-events-none max-h-[420px] w-full object-contain bg-white"
-                                  />
-                                  <span className="pointer-events-none absolute right-2 bottom-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
-                                    탭하여 확대
-                                  </span>
-                                </button>
-                              ))}
-                            </CardContent>
-                          </Card>
-                        )}
-                        {catEntries.map(([cat, items]) => (
-                          <div key={cat}>
-                            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                              {cat}
-                            </h4>
-                            <div className="grid gap-2">
-                              {items.map((item) => (
-                                <button
-                                  key={item.id}
-                                  onClick={() => addToCart(item, shop.name)}
-                                  className="flex items-center justify-between rounded-2xl border bg-card/90 p-3 text-left shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5 active:scale-[0.99]"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-sm font-medium">
-                                        {item.name}
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                  {shop.menuImageUrls.map((url, imgIdx) => (
+                                    <button
+                                      key={`${shop.id}-menu-thumb-${imgIdx}`}
+                                      type="button"
+                                      className="group relative aspect-[3/4] overflow-hidden rounded-xl border bg-white text-left shadow-sm transition-all hover:ring-2 hover:ring-amber-400 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                                      aria-label={`${shop.name} 메뉴판 ${imgIdx + 1} 확대 보기`}
+                                      onClick={() =>
+                                        setMenuLightbox({
+                                          urls: shop.menuImageUrls,
+                                          index: imgIdx,
+                                          shopName: shop.name,
+                                        })
+                                      }
+                                    >
+                                      <Image
+                                        src={url}
+                                        alt={`${shop.name} 메뉴판 ${imgIdx + 1}`}
+                                        width={400}
+                                        height={520}
+                                        unoptimized
+                                        className="size-full object-cover transition-transform group-hover:scale-[1.02]"
+                                      />
+                                      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2 text-[10px] font-medium text-white">
+                                        {imgIdx + 1}번 · 탭하여 확대
                                       </span>
-                                      {item.isIce && (
-                                        <Badge
-                                          variant="outline"
-                                          className="border-sky-300 text-sky-600 dark:border-sky-700 dark:text-sky-400"
-                                        >
-                                          ICE
-                                        </Badge>
-                                      )}
-                                      {item.isHot && (
-                                        <Badge
-                                          variant="outline"
-                                          className="border-rose-300 text-rose-600 dark:border-rose-700 dark:text-rose-400"
-                                        >
-                                          HOT
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <span className="ml-3 shrink-0 text-sm font-semibold">
-                                    {formatPrice(item.price)}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          </Card>
+                        </Collapsible>
+                      )}
+                    </div>
                   );
                 })()}
               </>
