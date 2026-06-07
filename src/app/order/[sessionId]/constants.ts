@@ -1,3 +1,5 @@
+export const NO_ORDER_TEXT = "주문 안 함";
+
 export const GONGCHA_TOPPING_OPTIONS = [
   { name: "", price: 0 },
   { name: "펄", price: 600 },

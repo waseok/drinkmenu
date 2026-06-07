@@ -22,10 +22,11 @@ export function getCartUnitPrice(item: CartItem) {
 
 export function buildCartOptionsText(item: CartItem) {
   const chunks: string[] = [];
+  chunks.push(`온도 ${item.temperature}`);
   if (item.gongcha) {
     const g = item.gongcha;
     chunks.push(`당도 ${g.sweetness}`);
-    chunks.push(g.ice);
+    if (item.temperature === "아이스") chunks.push(g.ice);
     if (g.topping1) chunks.push(`토핑 ${g.topping1}`);
     if (g.topping2) chunks.push(`추가토핑 ${g.topping2}`);
   }

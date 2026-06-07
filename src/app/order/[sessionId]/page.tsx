@@ -54,8 +54,9 @@ import {
   CartItem,
   StaffHistoryOrder,
   CustomLineOrder,
+  DrinkTemperature,
 } from "./types";
-import { GONGCHA_TOPPING_OPTIONS } from "./constants";
+import { GONGCHA_TOPPING_OPTIONS, NO_ORDER_TEXT } from "./constants";
 import {
   isGongchaShop,
   getToppingPrice,
@@ -330,16 +331,6 @@ export default function OrderPage({
   const addToCart = useCallback((menuItem: MenuItem, shopName: string) => {
     const useGongchaOption = isGongchaShop(shopName);
     setCart((prev) => {
-      const existing = prev.find(
-        (c) => c.menuItem.id === menuItem.id && !useGongchaOption,
-      );
-      if (existing) {
-        return prev.map((c) =>
-          c.cartId === existing.cartId
-            ? { ...c, quantity: c.quantity + 1 }
-            : c,
-        );
-      }
       return [
         ...prev,
         {
@@ -347,6 +338,7 @@ export default function OrderPage({
           menuItem,
           shopName,
           quantity: 1,
+          temperature: "아이스" as DrinkTemperature,
           customNote: "",
           gongcha: useGongchaOption
             ? {
@@ -361,6 +353,15 @@ export default function OrderPage({
     });
     toast.success(`${menuItem.name} 추가됨`);
   }, []);
+
+  const updateCartTemperature = useCallback(
+    (cartId: string, temperature: DrinkTemperature) => {
+      setCart((prev) =>
+        prev.map((c) => (c.cartId === cartId ? { ...c, temperature } : c)),
+      );
+    },
+    [],
+  );
 
   const updateCartQty = useCallback((cartId: string, delta: number) => {
     setCart((prev) =>
@@ -461,6 +462,31 @@ export default function OrderPage({
     setCustomDraftPrice("");
     setCustomDraftOptions("");
   }, [customDraftName, customDraftQty, customDraftPrice, customDraftOptions]);
+
+  const handleSelectNoOrder = useCallback(() => {
+    const hasSelections = cart.length > 0 || customLines.length > 0;
+    if (
+      hasSelections &&
+      !confirm("기존 선택을 지우고 '주문 안 함'으로 변경할까요?")
+    ) {
+      return;
+    }
+    setCart([]);
+    setCustomLines([
+      {
+        id: `custom-no-order-${Date.now()}`,
+        name: NO_ORDER_TEXT,
+        quantity: 1,
+        unitPrice: 0,
+        options: "",
+      },
+    ]);
+    setCustomDraftName("");
+    setCustomDraftQty("1");
+    setCustomDraftPrice("");
+    setCustomDraftOptions("");
+    toast.success("'주문 안 함'이 선택되었습니다.");
+  }, [cart.length, customLines.length]);
 
   const handleScrollToCart = useCallback(() => {
     cartSectionRef.current?.scrollIntoView({
@@ -1219,6 +1245,25 @@ export default function OrderPage({
               </Card>
             )}
 
+            <Card className="border-amber-200 bg-amber-50/50 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">공통 메뉴</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    음료를 주문하지 않는 경우 선택해주세요.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-amber-300 bg-background sm:w-auto"
+                  onClick={handleSelectNoOrder}
+                >
+                  {NO_ORDER_TEXT}
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* Shop selector */}
             {session.sessionShops.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">
@@ -1574,6 +1619,31 @@ export default function OrderPage({
                             </Button>
                           </div>
 
+                          <div className="grid gap-1.5">
+                            <span className="text-xs text-muted-foreground">
+                              온도
+                            </span>
+                            <div className="grid grid-cols-2 gap-1 rounded-md bg-muted/60 p-1">
+                              {(["아이스", "핫"] as const).map((temperature) => (
+                                <button
+                                  key={`${c.cartId}-${temperature}`}
+                                  type="button"
+                                  onClick={() =>
+                                    updateCartTemperature(c.cartId, temperature)
+                                  }
+                                  className={cn(
+                                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                                    c.temperature === temperature
+                                      ? "bg-background text-foreground shadow-sm"
+                                      : "text-muted-foreground hover:text-foreground",
+                                  )}
+                                >
+                                  {temperature}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
                           {/* Quantity + options row */}
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1 rounded-md border">
@@ -1630,21 +1700,26 @@ export default function OrderPage({
                                   <option value="100%">100%</option>
                                 </select>
                               </label>
-                              <label className="grid gap-1 text-xs">
-                                <span className="text-muted-foreground">얼음</span>
-                                <select
-                                  value={c.gongcha.ice}
-                                  onChange={(e) =>
-                                    updateGongchaOption(c.cartId, "ice", e.target.value)
-                                  }
-                                  className="h-8 rounded-md border bg-background px-2"
-                                >
-                                  <option value="따뜻한 음료">따뜻한 음료</option>
-                                  <option value="얼음 적게">얼음 적게</option>
-                                  <option value="얼음 보통">얼음 보통</option>
-                                  <option value="얼음 많게">얼음 많게</option>
-                                </select>
-                              </label>
+                              {c.temperature === "아이스" && (
+                                <label className="grid gap-1 text-xs">
+                                  <span className="text-muted-foreground">얼음</span>
+                                  <select
+                                    value={c.gongcha.ice}
+                                    onChange={(e) =>
+                                      updateGongchaOption(
+                                        c.cartId,
+                                        "ice",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="h-8 rounded-md border bg-background px-2"
+                                  >
+                                    <option value="얼음 적게">얼음 적게</option>
+                                    <option value="얼음 보통">얼음 보통</option>
+                                    <option value="얼음 많게">얼음 많게</option>
+                                  </select>
+                                </label>
+                              )}
                               <label className="grid gap-1 text-xs">
                                 <span className="text-muted-foreground">토핑</span>
                                 <select

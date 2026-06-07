@@ -98,11 +98,14 @@ export interface CustomLineOrder {
   options: string;
 }
 
+export type DrinkTemperature = "핫" | "아이스";
+
 export interface CartItem {
   cartId: string;
   menuItem: MenuItem;
   shopName: string;
   quantity: number;
+  temperature: DrinkTemperature;
   customNote: string;
   gongcha?: {
     sweetness: "0%" | "30%" | "50%" | "70%" | "100%";
