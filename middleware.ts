@@ -42,6 +42,9 @@ function getAccessScope(pathname: string, method: string): "admin" | "order" | n
   return null;
 }
 
+// /order/[sessionId] 형태 (세션 ID가 있는 주문 링크)
+const DIRECT_ORDER_LINK = /^\/order\/[^/]+/;
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
@@ -63,6 +66,18 @@ export function middleware(request: NextRequest) {
 
   if (isAuthenticated) {
     return NextResponse.next();
+  }
+
+  // 세션 링크(/order/[sessionId])로 직접 접근 시 order 쿠키 자동 발급
+  // sessionId 자체가 추측 불가능한 CUID라 링크 소지 = 인증으로 간주
+  if (requiredScope === "order" && DIRECT_ORDER_LINK.test(pathname)) {
+    const response = NextResponse.next();
+    response.cookies.set(ORDER_AUTH_COOKIE, SCHOOL_AUTH_TOKEN, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+    });
+    return response;
   }
 
   if (pathname.startsWith("/api/")) {
