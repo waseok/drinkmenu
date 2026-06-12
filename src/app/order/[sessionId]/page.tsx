@@ -59,7 +59,6 @@ import {
 } from "./types";
 import { GONGCHA_TOPPING_OPTIONS, NO_ORDER_TEXT } from "./constants";
 import {
-  isGongchaShop,
   getToppingPrice,
   getCartExtraPrice,
   getCartUnitPrice,
@@ -68,6 +67,10 @@ import {
   formatDate,
   normalizePhoneNumber,
 } from "./utils";
+import {
+  DrinkOptionDrawer,
+  type PendingDrinkPick,
+} from "./drinkOptionDrawer";
 
 let nextCartId = 0;
 
@@ -130,6 +133,10 @@ export default function OrderPage({
   const [lightboxZoom, setLightboxZoom] = useState(100);
   /** 메뉴판 사진 영역 (기본 접힘 — 음료 목록을 먼저 보이게) */
   const [menuPhotosOpen, setMenuPhotosOpen] = useState(false);
+  const [pendingDrink, setPendingDrink] = useState<{
+    menuItem: MenuItem;
+    shopName: string;
+  } | null>(null);
   const cartSectionRef = useRef<HTMLDivElement | null>(null);
 
   /** 매장 탭을 바꾸면 메뉴판 사진도 다시 접음 */
@@ -336,30 +343,19 @@ export default function OrderPage({
     setStep(1);
   }, [cart.length, customLines.length]);
 
-  const addToCart = useCallback((menuItem: MenuItem, shopName: string) => {
-    const useGongchaOption = isGongchaShop(shopName);
-    setCart((prev) => {
-      return [
-        ...prev,
-        {
-          cartId: `cart-${++nextCartId}`,
-          menuItem,
-          shopName,
-          quantity: 1,
-          temperature: "아이스" as DrinkTemperature,
-          customNote: "",
-          gongcha: useGongchaOption
-            ? {
-                sweetness: "100%",
-                ice: "얼음 보통",
-                topping1: "",
-                topping2: "",
-              }
-            : undefined,
-        },
-      ];
-    });
-    toast.success(`${menuItem.name} 추가됨`);
+  const openDrinkOptions = useCallback((menuItem: MenuItem, shopName: string) => {
+    setPendingDrink({ menuItem, shopName });
+  }, []);
+
+  const confirmDrinkToCart = useCallback((pick: PendingDrinkPick) => {
+    setCart((prev) => [
+      ...prev,
+      {
+        cartId: `cart-${++nextCartId}`,
+        ...pick,
+      },
+    ]);
+    toast.success(`${pick.menuItem.name} 담았어요`);
   }, []);
 
   const updateCartTemperature = useCallback(
@@ -920,7 +916,7 @@ export default function OrderPage({
         <div className="mx-auto max-w-3xl px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-lg font-bold">{session.title}</h1>
+              <h1 className="font-heading text-lg font-extrabold">{session.title}</h1>
               <p className="text-sm font-light text-muted-foreground">
                 {formatDate(session.date)}
                 {session.deadlineTime && (
@@ -1330,11 +1326,11 @@ export default function OrderPage({
                           <CardHeader className="border-b border-amber-100/80 bg-gradient-to-r from-amber-50/80 to-background pb-3 dark:border-amber-900/30 dark:from-amber-950/30">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <CardTitle className="text-base font-bold">
+                                <CardTitle className="font-heading text-base font-extrabold">
                                   음료 선택
                                 </CardTitle>
                                 <p className="mt-1 text-xs font-normal text-muted-foreground">
-                                  원하는 음료를 탭하면 장바구니에 담깁니다
+                                  음료를 탭하면 옵션 창이 바로 열립니다
                                 </p>
                               </div>
                               <Badge
@@ -1361,7 +1357,7 @@ export default function OrderPage({
                                     <button
                                       key={item.id}
                                       type="button"
-                                      onClick={() => addToCart(item, shop.name)}
+                                      onClick={() => openDrinkOptions(item, shop.name)}
                                       className="group flex items-center gap-3 rounded-2xl border-2 border-transparent bg-card p-3.5 text-left shadow-sm ring-1 ring-border/60 transition-all hover:border-amber-300/80 hover:bg-amber-50/50 hover:ring-amber-200 active:scale-[0.99] dark:hover:bg-amber-950/20 dark:hover:ring-amber-800/50"
                                     >
                                       <div className="min-w-0 flex-1">
@@ -1387,7 +1383,7 @@ export default function OrderPage({
                                           )}
                                         </div>
                                         <p className="mt-0.5 text-xs text-muted-foreground">
-                                          탭하여 담기 · 핫/아이스는 장바구니에서 선택
+                                          탭하여 옵션 선택
                                         </p>
                                       </div>
                                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -2031,6 +2027,16 @@ export default function OrderPage({
       )}
 
       {/* 메뉴판 이미지 확대 (라이트박스) */}
+      <DrinkOptionDrawer
+        open={!!pendingDrink}
+        menuItem={pendingDrink?.menuItem ?? null}
+        shopName={pendingDrink?.shopName ?? ""}
+        onOpenChange={(open) => {
+          if (!open) setPendingDrink(null);
+        }}
+        onConfirm={confirmDrinkToCart}
+      />
+
       <MenuLightboxDialog
         menuLightbox={menuLightbox}
         setMenuLightbox={setMenuLightbox}

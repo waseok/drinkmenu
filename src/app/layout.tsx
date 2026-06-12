@@ -3,25 +3,31 @@ import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const gmarketSans = localFont({
+/** 나눔스퀘어라운드 — 본문 가독성 (npm typeface-nanum-square-round) */
+const nanumSquareRound = localFont({
   src: [
     {
-      path: "../fonts/GmarketSansLight.otf",
+      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundL.woff2",
       weight: "300",
       style: "normal",
     },
     {
-      path: "../fonts/GmarketSansMedium.otf",
-      weight: "500",
+      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundR.woff2",
+      weight: "400",
       style: "normal",
     },
     {
-      path: "../fonts/GmarketSansBold.otf",
+      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundB.woff2",
       weight: "700",
       style: "normal",
     },
+    {
+      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundEB.woff2",
+      weight: "800",
+      style: "normal",
+    },
   ],
-  variable: "--font-gmarket",
+  variable: "--font-nanum-round",
   display: "swap",
 });
 
@@ -38,9 +44,9 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${gmarketSans.variable} h-full antialiased`}
+      className={`${nanumSquareRound.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col font-sans">
         {children}
         <Toaster richColors position="top-center" />
       </body>
