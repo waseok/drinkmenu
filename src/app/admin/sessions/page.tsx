@@ -92,6 +92,8 @@ interface StaffGroupRow {
   members: { staffId: string; staff: StaffLite }[];
 }
 
+import { SessionOrdersDialog } from "./session-orders-dialog";
+
 function formatDateKorean(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("ko-KR", {
@@ -129,6 +131,11 @@ export default function AdminSessionsPage() {
     "dept",
   );
   const [targetSearch, setTargetSearch] = useState("");
+
+  const [ordersDialogOpen, setOrdersDialogOpen] = useState(false);
+  const [ordersDialogSession, setOrdersDialogSession] = useState<Session | null>(
+    null,
+  );
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -387,6 +394,11 @@ export default function AdminSessionsPage() {
     }
   }
 
+  function openOrdersDialog(session: Session) {
+    setOrdersDialogSession(session);
+    setOrdersDialogOpen(true);
+  }
+
   function openCopyDialog(session: Session) {
     setEditingSession(null);
     setTitle(`${session.title} (복사)`);
@@ -535,6 +547,15 @@ export default function AdminSessionsPage() {
           >
             <CopyIcon data-icon="inline-start" />
             주문 링크 복사
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openOrdersDialog(session)}
+            disabled={session._count.orders === 0}
+          >
+            <TrashIcon data-icon="inline-start" />
+            주문 관리
           </Button>
           <Button
             variant="outline"
@@ -988,6 +1009,17 @@ export default function AdminSessionsPage() {
           </section>
         </div>
       )}
+
+      <SessionOrdersDialog
+        open={ordersDialogOpen}
+        onOpenChange={(open) => {
+          setOrdersDialogOpen(open);
+          if (!open) setOrdersDialogSession(null);
+        }}
+        sessionId={ordersDialogSession?.id ?? null}
+        sessionTitle={ordersDialogSession?.title ?? null}
+        onOrdersChanged={fetchSessions}
+      />
     </div>
   );
 }
