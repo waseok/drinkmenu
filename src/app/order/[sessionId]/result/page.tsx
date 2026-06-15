@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { OrderDeleteButton } from "@/components/order-delete-button";
 
 interface Staff {
   id: string;
@@ -105,6 +106,7 @@ export default function ResultPage({
   const [session, setSession] = useState<Session | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -139,6 +141,10 @@ export default function ResultPage({
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  function handleOrderDeleted(id: string) {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+  }
 
   const shopGroups = orders.reduce<Record<string, Order[]>>((acc, order) => {
     const shopName = shopLabelForOrder(order);
@@ -482,6 +488,9 @@ export default function ResultPage({
           <Card>
             <CardHeader>
               <CardTitle>주문 내역</CardTitle>
+              <p className="no-print text-sm text-muted-foreground">
+                잘못 입력된 주문은 각 행의 삭제 버튼으로 제거할 수 있습니다.
+              </p>
             </CardHeader>
             <CardContent>
               {orders.length === 0 ? (
@@ -500,6 +509,9 @@ export default function ResultPage({
                       <TableHead className="text-center">수량</TableHead>
                       <TableHead>옵션</TableHead>
                       <TableHead className="text-right">금액</TableHead>
+                      <TableHead className="no-print w-12 text-center">
+                        삭제
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -529,6 +541,14 @@ export default function ResultPage({
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatPrice(order.price * order.quantity)}
+                        </TableCell>
+                        <TableCell className="no-print text-center">
+                          <OrderDeleteButton
+                            order={order}
+                            deletingId={deletingId}
+                            onDeletingChange={setDeletingId}
+                            onDeleted={handleOrderDeleted}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -614,6 +634,9 @@ export default function ResultPage({
                             <TableHead className="text-center">수량</TableHead>
                             <TableHead>옵션</TableHead>
                             <TableHead className="text-right">금액</TableHead>
+                            <TableHead className="no-print w-12 text-center">
+                              삭제
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -635,6 +658,14 @@ export default function ResultPage({
                               </TableCell>
                               <TableCell className="text-right font-medium">
                                 {formatPrice(order.price * order.quantity)}
+                              </TableCell>
+                              <TableCell className="no-print text-center">
+                                <OrderDeleteButton
+                                  order={order}
+                                  deletingId={deletingId}
+                                  onDeletingChange={setDeletingId}
+                                  onDeleted={handleOrderDeleted}
+                                />
                               </TableCell>
                             </TableRow>
                           ))}

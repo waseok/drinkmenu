@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2Icon, TrashIcon } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,13 +14,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { OrderDeleteButton } from "@/components/order-delete-button";
+import { orderMenuLabel, orderShopLabel } from "@/lib/order-admin";
 
 interface SessionOrdersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessionId: string | null;
   sessionTitle: string | null;
-  /** 주문 삭제 후 세션 목록 갱신 */
   onOrdersChanged?: () => void;
 }
 
@@ -40,16 +41,6 @@ interface AdminOrderRow {
 
 function formatPrice(price: number) {
   return price.toLocaleString("ko-KR") + "원";
-}
-
-function menuLabel(order: AdminOrderRow) {
-  return order.menuItem?.name ?? order.customItemName?.trim() ?? "직접 입력";
-}
-
-function shopLabel(order: AdminOrderRow) {
-  return (
-    order.menuItem?.shop.name ?? order.customShopName ?? "직접 입력"
-  );
 }
 
 export function SessionOrdersDialog({
@@ -98,8 +89,8 @@ export function SessionOrdersDialog({
       const hay = [
         o.staff.name,
         o.staff.department,
-        menuLabel(o),
-        shopLabel(o),
+        orderMenuLabel(o),
+        orderShopLabel(o),
         o.options,
       ]
         .join(" ")
@@ -108,26 +99,9 @@ export function SessionOrdersDialog({
     });
   }, [orders, search]);
 
-  async function handleDeleteOrder(order: AdminOrderRow) {
-    const label = `${order.staff.name} · ${menuLabel(order)} ×${order.quantity}`;
-    if (!confirm(`다음 주문을 삭제할까요?\n\n${label}`)) return;
-
-    setDeletingId(order.id);
-    try {
-      const res = await fetch("/api/orders", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: order.id }),
-      });
-      if (!res.ok) throw new Error();
-      toast.success("주문을 삭제했습니다.");
-      setOrders((prev) => prev.filter((o) => o.id !== order.id));
-      onOrdersChanged?.();
-    } catch {
-      toast.error("주문 삭제에 실패했습니다.");
-    } finally {
-      setDeletingId(null);
-    }
+  function handleOrderDeleted(id: string) {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    onOrdersChanged?.();
   }
 
   return (
@@ -191,34 +165,26 @@ export function SessionOrdersDialog({
                       </Badge>
                     </div>
                     <p className="mt-0.5 text-sm">
-                      {menuLabel(order)}
+                      {orderMenuLabel(order)}
                       <span className="ml-1 text-muted-foreground">
                         ×{order.quantity}
                       </span>
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {shopLabel(order)}
+                      {orderShopLabel(order)}
                       {order.options.trim() && ` · ${order.options.trim()}`}
                     </p>
                     <p className="mt-1 text-xs font-medium">
                       {formatPrice(order.price * order.quantity)}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    disabled={deletingId === order.id}
-                    onClick={() => handleDeleteOrder(order)}
-                    aria-label={`${order.staff.name} 주문 삭제`}
-                  >
-                    {deletingId === order.id ? (
-                      <Loader2Icon className="size-4 animate-spin" />
-                    ) : (
-                      <TrashIcon className="size-4" />
-                    )}
-                  </Button>
+                  <OrderDeleteButton
+                    order={order}
+                    deletingId={deletingId}
+                    onDeletingChange={setDeletingId}
+                    onDeleted={handleOrderDeleted}
+                    hideOnPrint={false}
+                  />
                 </li>
               ))}
             </ul>
