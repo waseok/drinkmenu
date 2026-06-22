@@ -208,12 +208,22 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, quantity, options, price, menuItemId } = body as {
+    const {
+      id,
+      quantity,
+      options,
+      price,
+      menuItemId,
+      customItemName,
+      customShopName,
+    } = body as {
       id: string;
       quantity?: number;
       options?: string;
       price?: number;
-      menuItemId?: string;
+      menuItemId?: string | null;
+      customItemName?: string | null;
+      customShopName?: string | null;
     };
 
     if (!id) {
@@ -223,11 +233,48 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    const existing = await prisma.order.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "주문을 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
     const updateData: Record<string, unknown> = {};
-    if (quantity !== undefined) updateData.quantity = quantity;
+    if (quantity !== undefined) {
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return NextResponse.json(
+          { error: "수량은 1 이상이어야 합니다." },
+          { status: 400 }
+        );
+      }
+      updateData.quantity = quantity;
+    }
     if (options !== undefined) updateData.options = options;
-    if (price !== undefined) updateData.price = price;
+    if (price !== undefined) {
+      if (!Number.isFinite(price) || price < 0) {
+        return NextResponse.json(
+          { error: "단가는 0 이상이어야 합니다." },
+          { status: 400 }
+        );
+      }
+      updateData.price = Math.round(price);
+    }
     if (menuItemId !== undefined) updateData.menuItemId = menuItemId;
+    if (customItemName !== undefined) {
+      const trimmed = customItemName?.trim() ?? "";
+      if (!existing.menuItemId && !trimmed) {
+        return NextResponse.json(
+          { error: "직접 입력 주문은 음료명이 필요합니다." },
+          { status: 400 }
+        );
+      }
+      updateData.customItemName = trimmed || null;
+    }
+    if (customShopName !== undefined) {
+      updateData.customShopName = customShopName?.trim() || null;
+    }
 
     const order = await prisma.order.update({
       where: { id },

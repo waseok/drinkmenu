@@ -69,6 +69,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function GET(request: NextRequest) {
+  const hasAdmin =
+    request.cookies.get(ADMIN_AUTH_COOKIE)?.value === SCHOOL_AUTH_TOKEN;
+  const hasOrder =
+    request.cookies.get(ORDER_AUTH_COOKIE)?.value === SCHOOL_AUTH_TOKEN;
+
+  return NextResponse.json({
+    admin: hasAdmin,
+    order: hasAdmin || hasOrder,
+  });
+}
+
 export async function DELETE() {
   const response = NextResponse.json({ success: true });
   response.cookies.set(ADMIN_AUTH_COOKIE, "", {

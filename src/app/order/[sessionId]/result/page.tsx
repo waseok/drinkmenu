@@ -27,7 +27,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { OrderDeleteButton } from "@/components/order-delete-button";
+import { OrderRowActions } from "@/components/order-row-actions";
+import {
+  OrderEditDialog,
+  type EditableOrderRow,
+} from "@/components/order-edit-dialog";
+import { fetchAccessScopes } from "@/lib/order-admin";
 
 interface Staff {
   id: string;
@@ -79,6 +84,7 @@ interface Session {
   date: string;
   status: "OPEN" | "CLOSED";
   sessionTargets?: SessionTargetRow[];
+  sessionShops?: { shop: { name: string } }[];
 }
 
 function formatPrice(price: number) {
@@ -107,6 +113,9 @@ export default function ResultPage({
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -142,9 +151,39 @@ export default function ResultPage({
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    void fetchAccessScopes().then(({ admin }) => setIsAdmin(admin));
+  }, []);
+
   function handleOrderDeleted(id: string) {
     setOrders((prev) => prev.filter((o) => o.id !== id));
   }
+
+  function handleOrderUpdated(updated: EditableOrderRow & Record<string, unknown>) {
+    setOrders((prev) => {
+      const next = prev.map((o) =>
+        o.id === updated.id ? ({ ...o, ...updated } as Order) : o
+      );
+      return next.sort((a, b) => {
+        const deptCmp = a.staff.department.localeCompare(
+          b.staff.department,
+          "ko"
+        );
+        if (deptCmp !== 0) return deptCmp;
+        return a.staff.name.localeCompare(b.staff.name, "ko");
+      });
+    });
+  }
+
+  function openEditDialog(order: Order) {
+    setEditingOrder(order);
+    setEditDialogOpen(true);
+  }
+
+  const sessionShopNames = useMemo(
+    () => session?.sessionShops?.map((ss) => ss.shop.name) ?? [],
+    [session?.sessionShops]
+  );
 
   const shopGroups = orders.reduce<Record<string, Order[]>>((acc, order) => {
     const shopName = shopLabelForOrder(order);
@@ -489,7 +528,9 @@ export default function ResultPage({
             <CardHeader>
               <CardTitle>주문 내역</CardTitle>
               <p className="no-print text-sm text-muted-foreground">
-                잘못 입력된 주문은 각 행의 삭제 버튼으로 제거할 수 있습니다.
+                {isAdmin
+                  ? "관리자는 각 행에서 수정·삭제할 수 있습니다. (수량·옵션·단가 등)"
+                  : "잘못 입력된 주문은 각 행의 삭제 버튼으로 제거할 수 있습니다."}
               </p>
             </CardHeader>
             <CardContent>
@@ -509,8 +550,8 @@ export default function ResultPage({
                       <TableHead className="text-center">수량</TableHead>
                       <TableHead>옵션</TableHead>
                       <TableHead className="text-right">금액</TableHead>
-                      <TableHead className="no-print w-12 text-center">
-                        삭제
+                      <TableHead className="no-print w-20 text-center">
+                        {isAdmin ? "관리" : "삭제"}
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -543,11 +584,13 @@ export default function ResultPage({
                           {formatPrice(order.price * order.quantity)}
                         </TableCell>
                         <TableCell className="no-print text-center">
-                          <OrderDeleteButton
+                          <OrderRowActions
                             order={order}
+                            isAdmin={isAdmin}
                             deletingId={deletingId}
                             onDeletingChange={setDeletingId}
                             onDeleted={handleOrderDeleted}
+                            onEdit={() => openEditDialog(order)}
                           />
                         </TableCell>
                       </TableRow>
@@ -634,8 +677,8 @@ export default function ResultPage({
                             <TableHead className="text-center">수량</TableHead>
                             <TableHead>옵션</TableHead>
                             <TableHead className="text-right">금액</TableHead>
-                            <TableHead className="no-print w-12 text-center">
-                              삭제
+                            <TableHead className="no-print w-20 text-center">
+                              {isAdmin ? "관리" : "삭제"}
                             </TableHead>
                           </TableRow>
                         </TableHeader>
@@ -660,11 +703,13 @@ export default function ResultPage({
                                 {formatPrice(order.price * order.quantity)}
                               </TableCell>
                               <TableCell className="no-print text-center">
-                                <OrderDeleteButton
+                                <OrderRowActions
                                   order={order}
+                                  isAdmin={isAdmin}
                                   deletingId={deletingId}
                                   onDeletingChange={setDeletingId}
                                   onDeleted={handleOrderDeleted}
+                                  onEdit={() => openEditDialog(order)}
                                 />
                               </TableCell>
                             </TableRow>
@@ -679,6 +724,14 @@ export default function ResultPage({
           )}
         </div>
       </div>
+
+      <OrderEditDialog
+        order={editingOrder}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        sessionShopNames={sessionShopNames}
+        onUpdated={handleOrderUpdated}
+      />
     </>
   );
 }

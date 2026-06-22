@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, PencilIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +15,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { OrderDeleteButton } from "@/components/order-delete-button";
+import {
+  OrderEditDialog,
+  type EditableOrderRow,
+} from "@/components/order-edit-dialog";
 import { orderMenuLabel, orderShopLabel } from "@/lib/order-admin";
 
 interface SessionOrdersDialogProps {
@@ -30,6 +34,7 @@ interface AdminOrderRow {
   quantity: number;
   options: string;
   price: number;
+  menuItemId?: string | null;
   customItemName?: string | null;
   customShopName?: string | null;
   staff: { name: string; department: string };
@@ -54,16 +59,30 @@ export function SessionOrdersDialog({
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [sessionShopNames, setSessionShopNames] = useState<string[]>([]);
+  const [editingOrder, setEditingOrder] = useState<AdminOrderRow | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const loadOrders = useCallback(async () => {
     if (!sessionId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/orders?sessionId=${sessionId}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error();
-      const data = (await res.json()) as AdminOrderRow[];
+      const [sessionRes, ordersRes] = await Promise.all([
+        fetch(`/api/sessions/${sessionId}?includeOrders=false`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/orders?sessionId=${sessionId}`, { cache: "no-store" }),
+      ]);
+      if (!sessionRes.ok || !ordersRes.ok) throw new Error();
+
+      const sessionData = (await sessionRes.json()) as {
+        sessionShops?: { shop: { name: string } }[];
+      };
+      const data = (await ordersRes.json()) as AdminOrderRow[];
+
+      setSessionShopNames(
+        sessionData.sessionShops?.map((ss) => ss.shop.name) ?? []
+      );
       setOrders(data);
     } catch {
       toast.error("주문 목록을 불러오는데 실패했습니다.");
@@ -104,7 +123,17 @@ export function SessionOrdersDialog({
     onOrdersChanged?.();
   }
 
+  function handleOrderUpdated(updated: EditableOrderRow & Record<string, unknown>) {
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === updated.id ? ({ ...o, ...updated } as AdminOrderRow) : o
+      )
+    );
+    onOrdersChanged?.();
+  }
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92vh,720px)] max-w-2xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b px-4 pt-4 pb-3">
@@ -115,7 +144,7 @@ export function SessionOrdersDialog({
                 <span className="font-medium text-foreground">
                   {sessionTitle}
                 </span>
-                {" · "}잘못 입력된 주문을 개별 삭제할 수 있습니다.
+                {" · "}잘못 입력된 주문을 수정·삭제할 수 있습니다.
               </>
             ) : (
               "세션 주문 목록"
@@ -178,13 +207,28 @@ export function SessionOrdersDialog({
                       {formatPrice(order.price * order.quantity)}
                     </p>
                   </div>
-                  <OrderDeleteButton
-                    order={order}
-                    deletingId={deletingId}
-                    onDeletingChange={setDeletingId}
-                    onDeleted={handleOrderDeleted}
-                    hideOnPrint={false}
-                  />
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setEditingOrder(order);
+                        setEditDialogOpen(true);
+                      }}
+                      aria-label={`${order.staff.name} 주문 수정`}
+                    >
+                      <PencilIcon className="size-4" />
+                    </Button>
+                    <OrderDeleteButton
+                      order={order}
+                      deletingId={deletingId}
+                      onDeletingChange={setDeletingId}
+                      onDeleted={handleOrderDeleted}
+                      hideOnPrint={false}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
@@ -198,5 +242,14 @@ export function SessionOrdersDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <OrderEditDialog
+      order={editingOrder}
+      open={editDialogOpen}
+      onOpenChange={setEditDialogOpen}
+      sessionShopNames={sessionShopNames}
+      onUpdated={handleOrderUpdated}
+    />
+    </>
   );
 }
