@@ -179,13 +179,12 @@ function isPlausibleMenuNameOnlyLine(line: string): boolean {
   return true;
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("이미지를 읽지 못했습니다."));
-    reader.readAsDataURL(file);
-  });
+function clearPendingMenuFiles(
+  files: { file: File; previewUrl: string }[]
+): void {
+  for (const item of files) {
+    URL.revokeObjectURL(item.previewUrl);
+  }
 }
 
 export default function AdminShopsPage() {
@@ -208,6 +207,11 @@ export default function AdminShopsPage() {
     category: "",
     menuImageUrls: [] as string[],
   });
+  /** 신규 업체(아직 ID 없음) 저장 전까지 로컬에만 보관 */
+  const [pendingMenuFiles, setPendingMenuFiles] = useState<
+    { file: File; previewUrl: string }[]
+  >([]);
+  const [menuImageUploading, setMenuImageUploading] = useState(false);
 
   // Menu dialog
   const [menuDialogOpen, setMenuDialogOpen] = useState(false);
@@ -306,6 +310,10 @@ export default function AdminShopsPage() {
   // --- Shop CRUD ---
   const openAddShopDialog = () => {
     setEditingShop(null);
+    setPendingMenuFiles((prev) => {
+      clearPendingMenuFiles(prev);
+      return [];
+    });
     setShopForm({
       name: "",
       address: "",
@@ -318,6 +326,10 @@ export default function AdminShopsPage() {
 
   const openEditShopDialog = (shop: Shop) => {
     setEditingShop(shop);
+    setPendingMenuFiles((prev) => {
+      clearPendingMenuFiles(prev);
+      return [];
+    });
     setShopForm({
       name: shop.name,
       address: shop.address,
@@ -348,27 +360,113 @@ export default function AdminShopsPage() {
       return;
     }
 
+    const totalImages =
+      shopForm.menuImageUrls.length + pendingMenuFiles.length;
+    if (totalImages >= MAX_MENU_IMAGES) {
+      toast.error(`메뉴 사진은 최대 ${MAX_MENU_IMAGES}장까지 등록할 수 있습니다.`);
+      event.target.value = "";
+      return;
+    }
+
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setShopForm((prev) => {
-        if (prev.menuImageUrls.length >= MAX_MENU_IMAGES) {
-          toast.error(`메뉴 사진은 최대 ${MAX_MENU_IMAGES}장까지 등록할 수 있습니다.`);
-          return prev;
+      if (editingShop) {
+        setMenuImageUploading(true);
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch(
+          `/api/shops/${editingShop.id}/menu-images`,
+          { method: "POST", body: formData }
+        );
+        const data = (await res.json()) as {
+          error?: string;
+          menuImageUrls?: string[];
+        };
+        if (!res.ok) {
+          throw new Error(data.error ?? "메뉴 사진 업로드에 실패했습니다.");
         }
-        return { ...prev, menuImageUrls: [...prev.menuImageUrls, dataUrl] };
-      });
+        setShopForm((prev) => ({
+          ...prev,
+          menuImageUrls: Array.isArray(data.menuImageUrls)
+            ? data.menuImageUrls
+            : prev.menuImageUrls,
+        }));
+      } else {
+        const previewUrl = URL.createObjectURL(file);
+        setPendingMenuFiles((prev) => [...prev, { file, previewUrl }]);
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "이미지 처리에 실패했습니다.");
+      toast.error(
+        error instanceof Error ? error.message : "이미지 처리에 실패했습니다."
+      );
     } finally {
+      setMenuImageUploading(false);
       event.target.value = "";
     }
   };
 
-  const removeShopMenuImageAt = (index: number) => {
+  const removeShopMenuImageAt = async (index: number) => {
+    const url = shopForm.menuImageUrls[index];
+    if (!url) return;
+
+    if (editingShop) {
+      try {
+        const res = await fetch(
+          `/api/shops/${editingShop.id}/menu-images`,
+          {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url }),
+          }
+        );
+        const data = (await res.json()) as {
+          error?: string;
+          menuImageUrls?: string[];
+        };
+        if (!res.ok) {
+          throw new Error(data.error ?? "메뉴 사진 삭제에 실패했습니다.");
+        }
+        setShopForm((prev) => ({
+          ...prev,
+          menuImageUrls: Array.isArray(data.menuImageUrls)
+            ? data.menuImageUrls
+            : prev.menuImageUrls.filter((_, i) => i !== index),
+        }));
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "메뉴 사진 삭제에 실패했습니다."
+        );
+      }
+      return;
+    }
+
     setShopForm((prev) => ({
       ...prev,
       menuImageUrls: prev.menuImageUrls.filter((_, i) => i !== index),
     }));
+  };
+
+  const removePendingMenuFileAt = (index: number) => {
+    setPendingMenuFiles((prev) => {
+      const next = [...prev];
+      const removed = next.splice(index, 1)[0];
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return next;
+    });
+  };
+
+  const uploadPendingMenuFiles = async (shopId: string) => {
+    for (const pending of pendingMenuFiles) {
+      const formData = new FormData();
+      formData.append("file", pending.file);
+      const res = await fetch(`/api/shops/${shopId}/menu-images`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "메뉴 사진 업로드에 실패했습니다.");
+      }
+    }
   };
 
   const handleSaveShop = async () => {
@@ -389,9 +487,15 @@ export default function AdminShopsPage() {
         const res = await fetch("/api/shops", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(shopForm),
+          body: JSON.stringify({ ...shopForm, menuImageUrls: [] }),
         });
         if (!res.ok) throw new Error("업체 추가에 실패했습니다.");
+        const created = (await res.json()) as Shop;
+        if (pendingMenuFiles.length > 0) {
+          await uploadPendingMenuFiles(created.id);
+        }
+        clearPendingMenuFiles(pendingMenuFiles);
+        setPendingMenuFiles([]);
         toast.success("업체가 추가되었습니다.");
       }
       setShopDialogOpen(false);
@@ -1189,12 +1293,13 @@ export default function AdminShopsPage() {
             <div className="grid gap-2">
               <Label htmlFor="shop-menu-image">메뉴 사진 (최대 {MAX_MENU_IMAGES}장)</Label>
               <p className="text-xs text-muted-foreground">
-                주문 화면에 메뉴판 이미지로 표시됩니다. 장당 최대{" "}
+                주문 화면에 메뉴판 이미지로 표시됩니다. 업로드 시 자동으로
+                리사이즈되며 Vercel Blob에 저장됩니다. 장당 최대{" "}
                 {MAX_MENU_IMAGE_SIZE_MB}MB.
               </p>
               {shopForm.menuImageUrls.map((url, idx) => (
                 <div
-                  key={`preview-${idx}`}
+                  key={`preview-url-${idx}`}
                   className="overflow-hidden rounded-2xl border bg-muted/20"
                 >
                   <div className="relative h-40 w-full sm:h-48">
@@ -1212,7 +1317,8 @@ export default function AdminShopsPage() {
                       variant="ghost"
                       size="sm"
                       type="button"
-                      onClick={() => removeShopMenuImageAt(idx)}
+                      disabled={menuImageUploading}
+                      onClick={() => void removeShopMenuImageAt(idx)}
                     >
                       <X className="size-4" />
                       이 사진 제거
@@ -1220,17 +1326,52 @@ export default function AdminShopsPage() {
                   </div>
                 </div>
               ))}
-              {shopForm.menuImageUrls.length < MAX_MENU_IMAGES && (
+              {pendingMenuFiles.map((pending, idx) => (
+                <div
+                  key={`preview-pending-${idx}`}
+                  className="overflow-hidden rounded-2xl border border-dashed bg-muted/20"
+                >
+                  <div className="relative h-40 w-full sm:h-48">
+                    <Image
+                      src={pending.previewUrl}
+                      alt={`메뉴 사진 대기 ${idx + 1}`}
+                      fill
+                      unoptimized
+                      className="object-cover"
+                      sizes="100vw"
+                    />
+                  </div>
+                  <div className="flex justify-end border-t bg-background/80 p-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      disabled={menuImageUploading}
+                      onClick={() => removePendingMenuFileAt(idx)}
+                    >
+                      <X className="size-4" />
+                      이 사진 제거
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {shopForm.menuImageUrls.length + pendingMenuFiles.length <
+                MAX_MENU_IMAGES && (
                 <>
                   <label
                     htmlFor="shop-menu-image"
-                    className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-muted/20 px-4 py-6 text-center transition-colors hover:bg-muted/40"
+                    className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed bg-muted/20 px-4 py-6 text-center transition-colors hover:bg-muted/40 ${menuImageUploading ? "pointer-events-none opacity-60" : ""}`}
                   >
-                    <ImagePlus className="size-5 text-muted-foreground" />
+                    {menuImageUploading ? (
+                      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <ImagePlus className="size-5 text-muted-foreground" />
+                    )}
                     <div>
                       <p className="text-sm font-medium">
                         사진 추가 (
-                        {shopForm.menuImageUrls.length}/{MAX_MENU_IMAGES})
+                        {shopForm.menuImageUrls.length + pendingMenuFiles.length}/
+                        {MAX_MENU_IMAGES})
                       </p>
                       <p className="text-xs text-muted-foreground">
                         JPG, PNG 등 이미지 파일

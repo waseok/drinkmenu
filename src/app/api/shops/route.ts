@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  MAX_MENU_IMAGES,
+  deleteMenuImageIfBlob,
+  deleteRemovedMenuImageBlobs,
+  isLegacyMenuImageDataUrl,
+} from "@/lib/menu-image-storage";
 
 // ISR: 300초(5분)마다 재검증 (메뉴 정보는 관리자만 수정)
 export const revalidate = 300;
-
-const MAX_MENU_IMAGES = 3;
 
 function normalizeMenuImageUrlsInput(body: Record<string, unknown>): string[] {
   if (Array.isArray(body.menuImageUrls)) {
     return body.menuImageUrls
       .filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+      .filter((u) => !isLegacyMenuImageDataUrl(u))
       .slice(0, MAX_MENU_IMAGES);
   }
   if (typeof body.menuImageUrl === "string" && body.menuImageUrl.trim()) {
@@ -90,6 +95,14 @@ export async function PUT(request: NextRequest) {
         ? normalizeMenuImageUrlsInput(body)
         : undefined;
 
+    const existing =
+      menuUrlsPatch !== undefined
+        ? await prisma.shop.findUnique({
+            where: { id },
+            select: { menuImageUrls: true },
+          })
+        : null;
+
     const shop = await prisma.shop.update({
       where: { id },
       data: {
@@ -107,6 +120,13 @@ export async function PUT(request: NextRequest) {
         ...(menuUrlsPatch !== undefined ? { menuImageUrls: menuUrlsPatch } : {}),
       },
     });
+
+    if (menuUrlsPatch !== undefined && existing) {
+      await deleteRemovedMenuImageBlobs(
+        existing.menuImageUrls ?? [],
+        menuUrlsPatch
+      );
+    }
 
     return NextResponse.json(shop);
   } catch (error) {
@@ -130,7 +150,18 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    const existing = await prisma.shop.findUnique({
+      where: { id },
+      select: { menuImageUrls: true },
+    });
+
     await prisma.shop.delete({ where: { id } });
+
+    if (existing?.menuImageUrls?.length) {
+      await Promise.all(
+        existing.menuImageUrls.map((url) => deleteMenuImageIfBlob(url))
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
