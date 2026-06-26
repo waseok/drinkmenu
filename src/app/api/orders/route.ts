@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { shopLiteSelect } from "@/lib/shop-selects";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
         include: {
           staff: true,
           menuItem: {
-            include: { shop: true },
+            include: { shop: { select: shopLiteSelect } },
           },
         },
         orderBy: { createdAt: "asc" },
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
       } as any,
       include: {
         staff: true,
-        menuItem: menuItemId ? { include: { shop: true } } : false,
+        menuItem: menuItemId ? { include: { shop: { select: shopLiteSelect } } } : false,
       },
     });
 
@@ -282,7 +283,7 @@ export async function PUT(request: NextRequest) {
       include: {
         staff: true,
         menuItem: {
-          include: { shop: true },
+          include: { shop: { select: shopLiteSelect } },
         },
       },
     });

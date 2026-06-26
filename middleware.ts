@@ -39,6 +39,14 @@ function getAccessScope(pathname: string, method: string): "admin" | "order" | n
     return "admin";
   }
 
+  /** 메뉴판 사진만 주문 화면에서 lazy-load */
+  if (
+    method === "GET" &&
+    /^\/api\/shops\/[^/]+\/menu-images$/.test(pathname)
+  ) {
+    return "order";
+  }
+
   return null;
 }
 

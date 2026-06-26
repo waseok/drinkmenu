@@ -133,6 +133,13 @@ export default function OrderPage({
   const [lightboxZoom, setLightboxZoom] = useState(100);
   /** 메뉴판 사진 영역 (기본 접힘 — 음료 목록을 먼저 보이게) */
   const [menuPhotosOpen, setMenuPhotosOpen] = useState(false);
+  /** 매장별 메뉴판 사진 (펼칠 때만 API로 로드 — 전송량 절감) */
+  const [menuImagesByShopId, setMenuImagesByShopId] = useState<
+    Record<string, string[]>
+  >({});
+  const [menuImagesLoading, setMenuImagesLoading] = useState<
+    Record<string, boolean>
+  >({});
   const [pendingDrink, setPendingDrink] = useState<{
     menuItem: MenuItem;
     shopName: string;
@@ -143,6 +150,35 @@ export default function OrderPage({
   useEffect(() => {
     setMenuPhotosOpen(false);
   }, [activeShopIdx]);
+
+  const menuImagesFetchStarted = useRef<Set<string>>(new Set());
+
+  const loadMenuImages = useCallback(async (shopId: string) => {
+    if (menuImagesFetchStarted.current.has(shopId)) return;
+    menuImagesFetchStarted.current.add(shopId);
+    setMenuImagesLoading((prev) => ({ ...prev, [shopId]: true }));
+    try {
+      const res = await fetch(`/api/shops/${shopId}/menu-images`);
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { menuImageUrls?: string[] };
+      setMenuImagesByShopId((prev) => ({
+        ...prev,
+        [shopId]: Array.isArray(data.menuImageUrls) ? data.menuImageUrls : [],
+      }));
+    } catch {
+      menuImagesFetchStarted.current.delete(shopId);
+      setMenuImagesByShopId((prev) => ({ ...prev, [shopId]: [] }));
+    } finally {
+      setMenuImagesLoading((prev) => ({ ...prev, [shopId]: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    const shop = session?.sessionShops[activeShopIdx]?.shop;
+    if (menuPhotosOpen && shop?.hasMenuImages && shop.id) {
+      void loadMenuImages(shop.id);
+    }
+  }, [menuPhotosOpen, activeShopIdx, session, loadMenuImages]);
 
   /** 라이트박스를 열거나 다른 이미지로 바꿀 때 배율 초기화 */
   useEffect(() => {
@@ -1307,8 +1343,9 @@ export default function OrderPage({
                   const categories = groupByCategory(shop.menuItems);
                   const catEntries = Object.entries(categories);
                   const menuItemCount = shop.menuItems.length;
-                  const hasMenuImages =
-                    shop.menuImageUrls && shop.menuImageUrls.length > 0;
+                  const hasMenuImages = Boolean(shop.hasMenuImages);
+                  const loadedMenuImages = menuImagesByShopId[shop.id] ?? [];
+                  const menuImagesLoadingNow = Boolean(menuImagesLoading[shop.id]);
 
                   if (catEntries.length === 0 && !hasMenuImages) {
                     return (
@@ -1419,14 +1456,20 @@ export default function OrderPage({
                               }
                             >
                               <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border bg-white shadow-sm">
-                                <Image
-                                  src={shop.menuImageUrls[0]!}
-                                  alt={`${shop.name} 메뉴판 미리보기`}
-                                  width={112}
-                                  height={112}
-                                  unoptimized
-                                  className="size-full object-cover"
-                                />
+                                {loadedMenuImages[0] ? (
+                                  <Image
+                                    src={loadedMenuImages[0]}
+                                    alt={`${shop.name} 메뉴판 미리보기`}
+                                    width={112}
+                                    height={112}
+                                    unoptimized
+                                    className="size-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex size-full items-center justify-center bg-muted">
+                                    <ImageIcon className="size-6 text-muted-foreground" />
+                                  </div>
+                                )}
                                 <span className="absolute inset-0 flex items-center justify-center bg-black/35">
                                   <ImageIcon className="size-5 text-white" />
                                 </span>
@@ -1436,7 +1479,7 @@ export default function OrderPage({
                                   {shop.name} 메뉴판 사진
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {shop.menuImageUrls.length}장 · 펼쳐서 보기 ·
+                                  {shop.menuImageCount ?? 0}장 · 펼쳐서 보기 ·
                                   탭하면 확대
                                 </p>
                               </div>
@@ -1472,8 +1515,18 @@ export default function OrderPage({
                                     </Button>
                                   </div>
                                 )}
+                                {menuImagesLoadingNow ? (
+                                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                                    <Loader2Icon className="size-4 animate-spin" />
+                                    메뉴판 사진 불러오는 중…
+                                  </div>
+                                ) : loadedMenuImages.length === 0 ? (
+                                  <p className="py-4 text-center text-sm text-muted-foreground">
+                                    메뉴판 사진을 불러오지 못했습니다.
+                                  </p>
+                                ) : (
                                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                  {shop.menuImageUrls.map((url, imgIdx) => (
+                                  {loadedMenuImages.map((url, imgIdx) => (
                                     <button
                                       key={`${shop.id}-menu-thumb-${imgIdx}`}
                                       type="button"
@@ -1481,7 +1534,7 @@ export default function OrderPage({
                                       aria-label={`${shop.name} 메뉴판 ${imgIdx + 1} 확대 보기`}
                                       onClick={() =>
                                         setMenuLightbox({
-                                          urls: shop.menuImageUrls,
+                                          urls: loadedMenuImages,
                                           index: imgIdx,
                                           shopName: shop.name,
                                         })
@@ -1501,6 +1554,7 @@ export default function OrderPage({
                                     </button>
                                   ))}
                                 </div>
+                                )}
                               </div>
                             </CollapsibleContent>
                           </Card>

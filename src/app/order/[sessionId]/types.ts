@@ -25,8 +25,12 @@ export interface Shop {
   id: string;
   name: string;
   phone: string;
-  menuImageUrls: string[];
   menuItems: MenuItem[];
+  /** API 응답: 메뉴판 사진 존재 여부 (URL은 lazy-load) */
+  hasMenuImages?: boolean;
+  menuImageCount?: number;
+  /** lazy-load 후에만 채워짐 */
+  menuImageUrls?: string[];
 }
 
 export interface SessionShop {

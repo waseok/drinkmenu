@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  mapShopForOrderResponse,
+  shopForOrderSelect,
+  shopLiteSelect,
+} from "@/lib/shop-selects";
 
 // ISR: 5초마다 재검증 (주문이 실시간으로 들어옴)
 export const revalidate = 5;
@@ -23,7 +28,7 @@ export async function GET(
                   include: {
                     staff: true,
                     menuItem: {
-                      include: { shop: true },
+                      include: { shop: { select: shopLiteSelect } },
                     },
                   },
                   orderBy: { createdAt: "desc" as const },
@@ -33,7 +38,8 @@ export async function GET(
           sessionShops: {
             include: {
               shop: {
-                include: {
+                select: {
+                  ...shopForOrderSelect,
                   menuItems: {
                     where: { isAvailable: true },
                     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -81,7 +87,25 @@ export async function GET(
       }))
       .filter((g) => g.staffIds.length > 0);
 
-    return NextResponse.json({ ...session, pickerGroups });
+    const { sessionShops, ...sessionRest } = session;
+    const payload = {
+      ...sessionRest,
+      sessionShops: sessionShops.map((ss) => ({
+        ...ss,
+        shop: {
+          ...mapShopForOrderResponse(ss.shop),
+          menuItems: ss.shop.menuItems,
+        },
+      })),
+      pickerGroups,
+    };
+
+    const response = NextResponse.json(payload);
+    response.headers.set(
+      "Cache-Control",
+      "private, max-age=15, stale-while-revalidate=30"
+    );
+    return response;
   } catch (error) {
     console.error("Failed to fetch session:", error);
     return NextResponse.json(

@@ -120,7 +120,7 @@ export default function ResultPage({
   const fetchData = useCallback(async () => {
     try {
       const [sessionRes, ordersRes] = await Promise.all([
-        fetch(`/api/sessions/${sessionId}`, { cache: "no-store" }),
+        fetch(`/api/sessions/${sessionId}?includeOrders=false`, { cache: "no-store" }),
         fetch(`/api/orders?sessionId=${sessionId}`, { cache: "no-store" }),
       ]);
 
