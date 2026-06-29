@@ -5,8 +5,21 @@ export async function GET() {
   try {
     const staff = await prisma.staff.findMany({
       orderBy: [{ department: "asc" }, { name: "asc" }],
+      // 주문/관리 화면 어디서도 createdAt·updatedAt은 쓰지 않는다.
+      // 전체 교직원 목록은 주문 링크를 여는 모든 사람이 받아가므로
+      // 불필요한 타임스탬프를 빼서 응답 크기를 줄인다.
+      select: { id: true, name: true, department: true, position: true },
     });
-    return NextResponse.json(staff);
+    const response = NextResponse.json(staff);
+    // 교직원 목록은 거의 바뀌지 않고 사용자마다 동일하다.
+    // 공용(s-maxage) 캐시로 두면 점심시간에 수십 명이 동시에 주문 링크를
+    // 열어도 Vercel 엣지가 한 번 받은 응답을 공유해, compute→CDN 전송
+    // (Fast Origin Transfer)이 1회분으로 줄어든다.
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=30, stale-while-revalidate=300"
+    );
+    return response;
   } catch (error) {
     console.error("Failed to fetch staff:", error);
     return NextResponse.json(

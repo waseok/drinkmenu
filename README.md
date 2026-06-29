@@ -14,23 +14,30 @@
 
 - Next.js 16 (App Router) + TypeScript
 - Tailwind CSS + shadcn/ui
-- Prisma ORM + PostgreSQL (Supabase)
+- Prisma ORM + PostgreSQL (Neon)
+- Vercel Blob (메뉴판 사진 저장 — base64 대신 URL만 DB에 저장)
 - 네이버 플레이스 크롤링 (업체 검색 + 메뉴 자동 수집)
 
 ## 사전 준비
 
-### 1. Supabase 프로젝트 생성
+### 1. Neon 프로젝트 생성
 
-1. [supabase.com](https://supabase.com)에서 무료 계정 생성
-2. 새 프로젝트 생성
-3. Settings > Database > Connection string (URI)에서 연결 URL 복사
+1. [neon.tech](https://neon.tech)에서 무료 계정 생성
+2. 새 프로젝트 생성 (PostgreSQL)
+3. 대시보드의 Connection string에서 연결 URL 복사
 
 ### 2. 환경 변수 설정
 
 프로젝트 루트에 `.env` 파일을 생성합니다:
 
 ```env
-DATABASE_URL="postgresql://postgres:비밀번호@db.프로젝트ID.supabase.co:5432/postgres"
+# Neon 연결 문자열 (pooled connection 권장)
+DATABASE_URL="postgresql://<user>:<password>@<endpoint>.ap-southeast-1.aws.neon.tech/<db>?sslmode=require"
+
+# Vercel Blob (메뉴판 사진 업로드용)
+# Vercel 프로젝트에 Blob 스토어를 연결하면 자동 주입됩니다.
+# 로컬에서 업로드/마이그레이션을 직접 실행할 때만 수동 설정이 필요합니다.
+BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 ```
 
 ## 로컬 개발
@@ -55,8 +62,9 @@ npm run dev
 
 1. GitHub에 코드 푸시
 2. [vercel.com](https://vercel.com)에서 프로젝트 연결
-3. Environment Variables에 `DATABASE_URL` 추가
-4. 배포
+3. Storage 탭에서 **Blob 스토어**를 생성·연결 (메뉴판 사진 저장용 — 연결 시 `BLOB_READ_WRITE_TOKEN`이 자동 주입됨)
+4. Environment Variables에 `DATABASE_URL`(Neon) 추가
+5. 배포
 
 ### Vercel 빌드 설정
 
@@ -68,6 +76,29 @@ Build Command는 기본값 그대로 사용합니다. Prisma generate는 `postin
     "postinstall": "prisma generate"
   }
 }
+```
+
+### base64 메뉴 사진 → Blob 일괄 이전
+
+과거에 DB에 저장된 base64 메뉴 사진을 Vercel Blob URL로 옮깁니다.
+
+**방법 A — 배포 후 관리자 API (권장, Blob OIDC 사용)**
+
+1. 코드 배포 후 관리자로 로그인
+2. 브라우저 개발자 도구 콘솔에서 실행:
+
+```js
+fetch("/api/shops/migrate-menu-images", { method: "POST" })
+  .then((r) => r.json())
+  .then(console.log);
+```
+
+**방법 B — 로컬 스크립트**
+
+```bash
+npx vercel env pull .env.local --environment=production
+# .env.local 에 DATABASE_URL, BLOB_READ_WRITE_TOKEN 로드 후
+npm run migrate:menu-images
 ```
 
 ## 사용 방법

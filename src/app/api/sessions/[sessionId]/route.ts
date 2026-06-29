@@ -88,12 +88,30 @@ export async function GET(
       .filter((g) => g.staffIds.length > 0);
 
     const { sessionShops, ...sessionRest } = session;
+
+    // 메뉴 사진 개수만 별도로 구한다. base64 본문은 읽지 않으므로 DB egress가
+    // 매장당 수 바이트 수준으로 줄어든다. (cardinality는 배열 길이만 반환)
+    const shopIds = sessionShops.map((ss) => ss.shop.id);
+    const imageCountRows = shopIds.length
+      ? await prisma.$queryRaw<{ id: string; cnt: number }[]>`
+          SELECT id, cardinality("menuImageUrls")::int AS cnt
+          FROM shops
+          WHERE id = ANY(${shopIds})
+        `
+      : [];
+    const imageCountByShopId = new Map(
+      imageCountRows.map((r) => [r.id, Number(r.cnt) || 0])
+    );
+
     const payload = {
       ...sessionRest,
       sessionShops: sessionShops.map((ss) => ({
         ...ss,
         shop: {
-          ...mapShopForOrderResponse(ss.shop),
+          ...mapShopForOrderResponse(
+            ss.shop,
+            imageCountByShopId.get(ss.shop.id) ?? 0
+          ),
           menuItems: ss.shop.menuItems,
         },
       })),
@@ -101,9 +119,13 @@ export async function GET(
     };
 
     const response = NextResponse.json(payload);
+    // 이 응답(세션 메타·매장/메뉴·대상자·그룹)은 해당 세션을 여는 모든
+    // 사용자에게 동일하다. private였던 탓에 동시 접속자 수만큼 compute를
+    // 호출했지만, 공용(s-maxage) 캐시로 바꾸면 Vercel 엣지가 한 번 받은
+    // 응답을 모두에게 공유한다 → Fast Origin Transfer 대폭 절감.
     response.headers.set(
       "Cache-Control",
-      "private, max-age=15, stale-while-revalidate=30"
+      "public, s-maxage=10, stale-while-revalidate=30"
     );
     return response;
   } catch (error) {

@@ -31,20 +31,20 @@ function getAccessScope(pathname: string, method: string): "admin" | "order" | n
     return "order";
   }
 
+  /** 메뉴판 사진 GET만 주문 화면 lazy-load — /api/shops 전체 admin 분기보다 먼저 검사 */
+  if (
+    method === "GET" &&
+    /^\/api\/shops\/[^/]+\/menu-images$/.test(pathname)
+  ) {
+    return "order";
+  }
+
   if (
     pathname.startsWith("/api/shops") ||
     pathname.startsWith("/api/crawl") ||
     pathname.startsWith("/api/staff/upload")
   ) {
     return "admin";
-  }
-
-  /** 메뉴판 사진만 주문 화면에서 lazy-load */
-  if (
-    method === "GET" &&
-    /^\/api\/shops\/[^/]+\/menu-images$/.test(pathname)
-  ) {
-    return "order";
   }
 
   return null;

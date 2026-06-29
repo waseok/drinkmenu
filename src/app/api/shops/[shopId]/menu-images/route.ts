@@ -41,9 +41,11 @@ export async function GET(
     }
 
     const response = NextResponse.json({ menuImageUrls });
+    // 매장 메뉴판 사진 URL 목록도 사용자마다 동일하므로 공용 캐시로 둔다.
+    // (값이 바뀌는 건 관리자가 사진을 추가/삭제할 때뿐 → s-maxage로 충분)
     response.headers.set(
       "Cache-Control",
-      "private, max-age=300, stale-while-revalidate=600"
+      "public, s-maxage=300, stale-while-revalidate=600"
     );
     return response;
   } catch (error) {
