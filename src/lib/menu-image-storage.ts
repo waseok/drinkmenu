@@ -65,7 +65,9 @@ export async function uploadMenuImageToBlob(
   }
 
   const resized = await resizeMenuImage(imageBuffer);
-  const blob = await put(menuImageBlobPath(shopId), resized, {
+  // sharp Buffer가 SharedArrayBuffer를 쓰면 Vercel fetch Body에서 거부됨
+  const body = Uint8Array.from(resized);
+  const blob = await put(menuImageBlobPath(shopId), body, {
     access: "public",
     contentType: "image/jpeg",
     addRandomSuffix: false,

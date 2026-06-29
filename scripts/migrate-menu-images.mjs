@@ -9,7 +9,9 @@
  *   npx vercel env pull .env.local --environment=production
  *   (Windows PowerShell) Get-Content .env.local | ForEach-Object { ... } 후 실행
  */
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 import pg from "pg";
 import sharp from "sharp";
 import { put } from "@vercel/blob";
@@ -53,7 +55,9 @@ function hasBlobConfig() {
 
 async function uploadToBlob(shopId, buffer) {
   const resized = await resizeMenuImage(buffer);
-  const blob = await put(blobPath(shopId), resized, {
+  // sharp Buffer → Uint8Array (SharedArrayBuffer fetch 오류 방지)
+  const body = Uint8Array.from(resized);
+  const blob = await put(blobPath(shopId), body, {
     access: "public",
     contentType: "image/jpeg",
     addRandomSuffix: false,
