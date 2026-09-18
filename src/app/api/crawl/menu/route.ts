@@ -93,9 +93,13 @@ function collectMenuItems(
       extractPrice(val.unitprice) ??
       extractPrice(val.salePrice) ??
       extractPrice(val.defaultPrice);
+
+    // 가격이 없는 항목은 섹션 제목으로 간주하고 제외
+    if (price === null) continue;
+
     const description = extractDescription(val);
 
-    const dedupKey = `${name}_${price ?? "null"}`;
+    const dedupKey = `${name}_${price}`;
     if (seen.has(dedupKey)) continue;
     seen.add(dedupKey);
 
