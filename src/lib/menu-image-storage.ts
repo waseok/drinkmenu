@@ -1,5 +1,4 @@
 import { del, put } from "@vercel/blob";
-import sharp from "sharp";
 
 export const MAX_MENU_IMAGES = 3;
 /** 긴 변 기준 최대 픽셀 — 메뉴판 가독성 유지하면서 용량 절감 */
@@ -27,6 +26,8 @@ function parseDataUrl(dataUrl: string): Buffer | null {
 
 /** 업로드·마이그레이션 공통 — JPEG로 리사이즈 */
 export async function resizeMenuImage(input: Buffer): Promise<Buffer> {
+  // 최상단 import 시 네이티브 모듈 로드 실패가 목록 조회 API까지 죽이므로 지연 로드
+  const { default: sharp } = await import("sharp");
   return sharp(input)
     .rotate()
     .resize(MENU_IMAGE_MAX_EDGE, MENU_IMAGE_MAX_EDGE, {
