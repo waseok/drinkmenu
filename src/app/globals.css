@@ -7,10 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-nanum-round), "Apple SD Gothic Neo", "Malgun Gothic",
+  --font-sans: var(--font-score-dream), "Apple SD Gothic Neo", "Malgun Gothic",
     sans-serif;
-  --font-mono: var(--font-nanum-round), ui-monospace, monospace;
-  --font-heading: var(--font-nanum-round), "Apple SD Gothic Neo", "Malgun Gothic",
+  --font-mono: var(--font-score-dream), ui-monospace, monospace;
+  --font-heading: var(--font-score-dream), "Apple SD Gothic Neo", "Malgun Gothic",
     sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -131,11 +131,16 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-weight: 400;
-    font-size: 16px;
+    font-size: 1rem;
     line-height: 1.55;
     background-image:
       radial-gradient(circle at top, color-mix(in oklch, var(--color-primary) 10%, transparent) 0%, transparent 36%),
       linear-gradient(to bottom, color-mix(in oklch, var(--color-background) 94%, white) 0%, var(--color-background) 100%);
+  }
+
+  /* 주문 화면: 어르신도 보기 편하도록 기본 글자 크기 확대 (rem 기반 전체 비례 확대) */
+  html.order-ui {
+    font-size: 18px;
   }
 
   html {

@@ -145,10 +145,21 @@ export default function OrderPage({
     shopName: string;
   } | null>(null);
   const cartSectionRef = useRef<HTMLDivElement | null>(null);
+  const [menuQuery, setMenuQuery] = useState("");
+  const [menuCategory, setMenuCategory] = useState("");
+  const [cartPanelOpen, setCartPanelOpen] = useState(false);
+
+  /** 어르신도 보기 편하도록 주문 화면에서만 기본 글자 크기를 키움 (globals.css html.order-ui) */
+  useEffect(() => {
+    document.documentElement.classList.add("order-ui");
+    return () => document.documentElement.classList.remove("order-ui");
+  }, []);
 
   /** 매장 탭을 바꾸면 메뉴판 사진도 다시 접음 */
   useEffect(() => {
     setMenuPhotosOpen(false);
+    setMenuQuery("");
+    setMenuCategory("");
   }, [activeShopIdx]);
 
   const menuImagesFetchStarted = useRef<Set<string>>(new Set());
@@ -828,7 +839,7 @@ export default function OrderPage({
               <p className="mt-1 text-sm text-muted-foreground">{error}</p>
             </div>
             {session && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {session.title} · {formatDate(session.date)}
               </p>
             )}
@@ -865,7 +876,7 @@ export default function OrderPage({
         >
           <span className="block leading-tight">{staff.name}</span>
           {isOrdered && (
-            <span className="mt-1 block text-[10px] font-normal text-muted-foreground/90">
+            <span className="mt-1 block text-sm font-normal text-muted-foreground/90">
               주문함
             </span>
           )}
@@ -878,9 +889,9 @@ export default function OrderPage({
             </p>
           </div>
           {isHistoryLoading ? (
-            <p className="text-xs text-muted-foreground">불러오는 중...</p>
+            <p className="text-sm text-muted-foreground">불러오는 중...</p>
           ) : !history || history.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               최근 주문 내역이 없습니다.
             </p>
           ) : (
@@ -890,14 +901,14 @@ export default function OrderPage({
                   key={item.id}
                   className="rounded-lg border bg-muted/30 px-2.5 py-2"
                 >
-                  <p className="text-xs font-semibold text-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     {historyItemTitle(item)}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 text-sm text-muted-foreground">
                     {item.menuItem?.shop?.name ?? "직접 입력"} · {item.session.title}
                   </p>
                   {item.options && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 text-sm text-muted-foreground">
                       옵션: {item.options}
                     </p>
                   )}
@@ -905,7 +916,7 @@ export default function OrderPage({
               ))}
             </div>
           )}
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             급할 때 대리 주문 참고용으로 확인할 수 있어요.
           </p>
         </HoverCardContent>
@@ -916,7 +927,7 @@ export default function OrderPage({
   /** 이름 선택 버튼: 이미 주문한 사람은 음영 + '주문함' 표시 (추가 주문 가능) */
   function staffPickerButtonClass(staffId: string) {
     return cn(
-      "rounded-lg border px-2 py-2 text-center text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.97]",
+      "rounded-xl border px-2 py-3.5 text-center text-base font-semibold transition-colors hover:border-primary hover:bg-primary/5 active:scale-[0.97]",
       staffIdsWithOrders.has(staffId)
         ? "border-muted-foreground/25 bg-muted/50 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] hover:bg-muted/65 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
         : "bg-card",
@@ -947,16 +958,16 @@ export default function OrderPage({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50/50 via-background to-background pb-32">
-      {/* ── Sticky header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b border-amber-100/60 bg-white/90 backdrop-blur-xl supports-[backdrop-filter]:bg-white/80">
-        <div className="mx-auto max-w-3xl px-5 py-4">
+      {/* ── Header (스크롤되며 사라짐: 모바일에서 목록 공간 확보) ─────────── */}
+      <header className="border-b border-amber-100/60 bg-white/90">
+        <div className="mx-auto max-w-5xl px-4 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="font-heading text-lg font-extrabold">{session.title}</h1>
-              <p className="text-sm font-light text-muted-foreground">
+              <p className="text-sm font-normal text-muted-foreground">
                 {formatDate(session.date)}
                 {session.deadlineTime && (
-                  <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                  <span className="ml-2 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-sm font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                     마감 {session.deadlineTime}
                     {deadlineCountdown && ` · ${deadlineCountdown} 남음`}
                   </span>
@@ -1001,7 +1012,7 @@ export default function OrderPage({
                 <div className="flex items-center gap-1.5">
                   <div
                     className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors",
+                      "flex size-6 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors",
                       step > s.n
                         ? "bg-primary text-primary-foreground"
                         : step === s.n
@@ -1013,7 +1024,7 @@ export default function OrderPage({
                   </div>
                   <span
                     className={cn(
-                      "hidden text-xs sm:inline",
+                      "hidden text-sm sm:inline",
                       step >= s.n
                         ? "font-medium text-foreground"
                         : "text-muted-foreground",
@@ -1026,39 +1037,17 @@ export default function OrderPage({
             ))}
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {selectedStaff && (
-              <Badge variant="secondary" className="rounded-full px-3 py-1">
-                주문자: {selectedStaff.name}
-              </Badge>
-            )}
-            {step === 2 && activeShop && (
-              <Badge variant="outline" className="rounded-full px-3 py-1">
-                현재 업체: {activeShop.name}
-              </Badge>
-            )}
-            {step === 2 && activeShop?.phone && (
-              <Badge variant="outline" className="rounded-full px-3 py-1">
-                전화: {activeShop.phone}
-              </Badge>
-            )}
-            {step === 2 && (cartCount > 0 || customLines.length > 0) && (
-              <Badge variant="outline" className="rounded-full px-3 py-1">
-                합계: {cartCount + customLineQtySum}잔 · {formatPrice(checkoutTotal)}
-              </Badge>
-            )}
-          </div>
         </div>
       </header>
 
       {/* ── Main content ──────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-3xl px-4 py-4">
+      <main className="mx-auto max-w-5xl px-3 py-4 sm:px-6">
         {/* ============================================================= */}
         {/* STEP 1 : Select name                                          */}
         {/* ============================================================= */}
         {step === 1 && (
           <div className="space-y-5">
-            <p className="text-base font-light text-muted-foreground">
+            <p className="text-base font-normal text-muted-foreground">
               {session.sessionTargets && session.sessionTargets.length > 0
                 ? "이번 세션의 주문 대상만 표시됩니다. 이름을 선택하거나 직접 입력해주세요."
                 : "이름을 선택하거나 직접 입력해주세요."}
@@ -1083,55 +1072,38 @@ export default function OrderPage({
               </p>
             )}
 
-            <Card className="border-0 shadow-md">
-              <CardHeader>
-                <CardTitle className="text-base">직접 입력</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Input
-                  placeholder="이름 입력"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                />
-                <Input
-                  placeholder="부서 입력 (선택)"
-                  value={manualDepartment}
-                  onChange={(e) => setManualDepartment(e.target.value)}
-                />
-                <Button onClick={handleSelectManualStaff} className="w-full">
-                  직접 입력으로 주문하기
-                </Button>
-              </CardContent>
-            </Card>
-
             {/* 최근 선택 직원 빠른 선택 */}
             {lastStaff && (
-              <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/25">
-                <div className="text-sm">
-                  <span className="text-xs text-muted-foreground">최근 선택 · </span>
-                  <span className="font-medium">
-                    {lastStaff.department} / {lastStaff.name}
+              <button
+                type="button"
+                onClick={() => handleSelectStaff(lastStaff)}
+                className="flex w-full items-center justify-between gap-3 rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-4 text-left shadow-sm transition-colors hover:bg-amber-100 active:scale-[0.99] dark:border-amber-700/60 dark:bg-amber-950/30"
+              >
+                <span>
+                  <span className="block text-sm text-muted-foreground">
+                    지난번에 선택한 이름
                   </span>
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="ml-3 shrink-0 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200"
-                  onClick={() => handleSelectStaff(lastStaff)}
-                >
-                  바로 선택
-                </Button>
-              </div>
+                  <span className="block text-xl font-bold">
+                    {lastStaff.name} 님
+                    <span className="ml-2 text-base font-normal text-muted-foreground">
+                      {lastStaff.department}
+                    </span>
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-full bg-amber-500 px-4 py-2 text-base font-bold text-white">
+                  이 이름으로 주문
+                </span>
+              </button>
             )}
 
             {/* Search */}
             <div className="relative">
-              <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <SearchIcon className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="이름 또는 부서 검색"
+                placeholder="내 이름 검색 (예: 김민수)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
+                className="h-12 pl-11 text-base"
               />
             </div>
 
@@ -1166,10 +1138,10 @@ export default function OrderPage({
                 <div className="space-y-4">
                   {filteredGroups.map(([dept, members]) => (
                     <div key={dept}>
-                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <h3 className="mb-2 text-base font-bold text-foreground">
                         {dept}
                       </h3>
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                         {members.map((staff) => renderStaffPickerButton(staff))}
                       </div>
                     </div>
@@ -1184,16 +1156,46 @@ export default function OrderPage({
               <div className="space-y-4">
                 {filteredPickerGroups.map((g) => (
                   <div key={g.id}>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <h3 className="mb-2 text-base font-bold text-foreground">
                       {g.name}
                     </h3>
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                       {g.members.map((staff) => renderStaffPickerButton(staff))}
                     </div>
                   </div>
                 ))}
               </div>
             )}
+
+            {/* 명단에 없는 경우 */}
+            <Collapsible>
+              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border bg-card px-4 py-3 text-left text-base font-medium">
+                명단에 내 이름이 없나요? 직접 입력하기
+                <ChevronDownIcon className="size-5 text-muted-foreground" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-3 rounded-b-xl border border-t-0 bg-card p-4">
+                  <Input
+                    placeholder="이름 입력"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    className="h-12 text-base"
+                  />
+                  <Input
+                    placeholder="부서 입력 (선택)"
+                    value={manualDepartment}
+                    onChange={(e) => setManualDepartment(e.target.value)}
+                    className="h-12 text-base"
+                  />
+                  <Button
+                    onClick={handleSelectManualStaff}
+                    className="h-12 w-full text-base"
+                  >
+                    직접 입력으로 주문하기
+                  </Button>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         )}
 
@@ -1213,23 +1215,34 @@ export default function OrderPage({
                   <Badge variant="outline">직접 입력</Badge>
                 )}
               </div>
-              <Button variant="ghost" size="sm" onClick={handleChangeStaff}>
-                <ArrowLeftIcon className="mr-1 size-3.5" />
-                변경
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={handleChangeStaff}>
+                  <ArrowLeftIcon className="mr-1 size-4" />
+                  이름 변경
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                  onClick={handleSelectNoOrder}
+                >
+                  {NO_ORDER_TEXT}
+                </Button>
+              </div>
             </div>
 
             <Separator />
 
             {/* Existing orders (editable) */}
             {existingOrders.length > 0 && (
+              <Collapsible>
               <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center justify-between text-sm font-medium text-amber-800 dark:text-amber-200">
-                    <span>기존 주문 {existingOrders.length}건</span>
-                    <span className="text-xs font-normal text-muted-foreground">수량 변경 가능</span>
-                  </CardTitle>
-                </CardHeader>
+                <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-amber-800 dark:text-amber-200">
+                  <span>이미 주문한 내역 {existingOrders.length}건 (눌러서 확인·수정)</span>
+                  <ChevronDownIcon className="size-5" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
                 <CardContent>
                   <div className="space-y-2">
                     {existingOrders.map((order) => (
@@ -1242,11 +1255,11 @@ export default function OrderPage({
                             {order.menuItem?.name ?? order.customItemName ?? "직접 입력"}
                           </span>
                           {order.options && (
-                            <span className="ml-1 text-xs text-muted-foreground">
+                            <span className="ml-1 text-sm text-muted-foreground">
                               ({order.options})
                             </span>
                           )}
-                          <div className="mt-0.5 text-xs text-muted-foreground">
+                          <div className="mt-0.5 text-sm text-muted-foreground">
                             {order.menuItem?.shop?.name ?? order.customShopName ?? "직접 입력"}
                             {" · "}
                             {formatPrice(order.price)} × {order.quantity} ={" "}
@@ -1256,22 +1269,22 @@ export default function OrderPage({
                         <div className="flex shrink-0 items-center gap-1">
                           <Button
                             variant="outline"
-                            size="icon-xs"
+                            size="icon"
                             onClick={() => handleUpdateOrderQty(order.id, order.quantity - 1)}
                           >
-                            <MinusIcon className="size-3" />
+                            <MinusIcon className="size-4" />
                           </Button>
                           <span className="w-5 text-center text-sm font-semibold">{order.quantity}</span>
                           <Button
                             variant="outline"
-                            size="icon-xs"
+                            size="icon"
                             onClick={() => handleUpdateOrderQty(order.id, order.quantity + 1)}
                           >
-                            <PlusIcon className="size-3" />
+                            <PlusIcon className="size-4" />
                           </Button>
                           <Button
                             variant="ghost"
-                            size="icon-xs"
+                            size="icon"
                             onClick={() => handleDeleteOrder(order.id)}
                             className="ml-1"
                           >
@@ -1282,27 +1295,10 @@ export default function OrderPage({
                     ))}
                   </div>
                 </CardContent>
+                </CollapsibleContent>
               </Card>
+              </Collapsible>
             )}
-
-            <Card className="border-amber-200 bg-amber-50/50 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20">
-              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold">공통 메뉴</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    음료를 주문하지 않는 경우 선택해주세요.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-amber-300 bg-background sm:w-auto"
-                  onClick={handleSelectNoOrder}
-                >
-                  {NO_ORDER_TEXT}
-                </Button>
-              </CardContent>
-            </Card>
 
             {/* Shop selector */}
             {session.sessionShops.length === 0 ? (
@@ -1323,11 +1319,11 @@ export default function OrderPage({
                           : "text-muted-foreground hover:text-foreground",
                       )}
                     >
-                      <StoreIcon className="size-3.5" />
+                      <StoreIcon className="size-4" />
                       <div className="text-left">
                         <div>{ss.shop.name}</div>
                         {ss.shop.phone && (
-                          <div className="text-[10px] font-normal text-muted-foreground">
+                          <div className="text-sm font-normal text-muted-foreground">
                             {ss.shop.phone}
                           </div>
                         )}
@@ -1341,13 +1337,28 @@ export default function OrderPage({
                   const shop = session.sessionShops[activeShopIdx]?.shop;
                   if (!shop) return null;
                   const categories = groupByCategory(shop.menuItems);
-                  const catEntries = Object.entries(categories);
+                  const allCatEntries = Object.entries(categories);
+                  const q = menuQuery.trim().toLowerCase();
+                  const catEntries = allCatEntries
+                    .map(
+                      ([cat, items]) =>
+                        [
+                          cat,
+                          items.filter(
+                            (i) => !q || i.name.toLowerCase().includes(q),
+                          ),
+                        ] as [string, MenuItem[]],
+                    )
+                    .filter(
+                      ([cat, items]) =>
+                        items.length > 0 && (!menuCategory || cat === menuCategory),
+                    );
                   const menuItemCount = shop.menuItems.length;
                   const hasMenuImages = Boolean(shop.hasMenuImages);
                   const loadedMenuImages = menuImagesByShopId[shop.id] ?? [];
                   const menuImagesLoadingNow = Boolean(menuImagesLoading[shop.id]);
 
-                  if (catEntries.length === 0 && !hasMenuImages) {
+                  if (allCatEntries.length === 0 && !hasMenuImages) {
                     return (
                       <p className="py-8 text-center text-sm text-muted-foreground">
                         등록된 메뉴가 없습니다.
@@ -1358,7 +1369,7 @@ export default function OrderPage({
                   return (
                     <div className="space-y-4">
                       {/* ── 음료 선택 (메인) ───────────────────────────── */}
-                      {catEntries.length > 0 && (
+                      {allCatEntries.length > 0 && (
                         <Card className="overflow-hidden border-amber-200/80 shadow-md dark:border-amber-900/40">
                           <CardHeader className="border-b border-amber-100/80 bg-gradient-to-r from-amber-50/80 to-background pb-3 dark:border-amber-900/30 dark:from-amber-950/30">
                             <div className="flex items-start justify-between gap-3">
@@ -1366,9 +1377,6 @@ export default function OrderPage({
                                 <CardTitle className="font-heading text-base font-extrabold">
                                   음료 선택
                                 </CardTitle>
-                                <p className="mt-1 text-xs font-normal text-muted-foreground">
-                                  음료를 탭하면 옵션 창이 바로 열립니다
-                                </p>
                               </div>
                               <Badge
                                 variant="secondary"
@@ -1377,19 +1385,56 @@ export default function OrderPage({
                                 {menuItemCount}종
                               </Badge>
                             </div>
+                            {menuItemCount > 8 && (
+                              <div className="relative mt-2">
+                                <SearchIcon className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  placeholder="음료 이름 검색"
+                                  value={menuQuery}
+                                  onChange={(e) => setMenuQuery(e.target.value)}
+                                  className="h-11 bg-background pl-11 text-base"
+                                />
+                              </div>
+                            )}
+                            {allCatEntries.length > 1 && (
+                              <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                {["", ...allCatEntries.map(([cat]) => cat)].map(
+                                  (cat) => (
+                                    <button
+                                      key={cat || "__all"}
+                                      type="button"
+                                      onClick={() => setMenuCategory(cat)}
+                                      className={cn(
+                                        "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors",
+                                        menuCategory === cat
+                                          ? "border-amber-500 bg-amber-500 text-white"
+                                          : "bg-background text-foreground hover:bg-amber-50",
+                                      )}
+                                    >
+                                      {cat || "전체"}
+                                    </button>
+                                  ),
+                                )}
+                              </div>
+                            )}
                           </CardHeader>
                           <CardContent className="space-y-5 p-4 pt-4">
+                            {catEntries.length === 0 && (
+                              <p className="py-6 text-center text-base text-muted-foreground">
+                                검색 결과가 없습니다.
+                              </p>
+                            )}
                             {catEntries.map(([cat, items]) => (
                               <div key={cat}>
                                 <div className="mb-2.5 flex items-center gap-2">
-                                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase dark:bg-amber-900/40 dark:text-amber-200">
+                                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-sm font-semibold tracking-wide text-amber-900 uppercase dark:bg-amber-900/40 dark:text-amber-200">
                                     {cat}
                                   </span>
-                                  <span className="text-[11px] text-muted-foreground">
+                                  <span className="text-sm text-muted-foreground">
                                     {items.length}개
                                   </span>
                                 </div>
-                                <div className="grid gap-2">
+                                <div className="grid gap-2 md:grid-cols-2">
                                   {items.map((item) => (
                                     <button
                                       key={item.id}
@@ -1399,13 +1444,13 @@ export default function OrderPage({
                                     >
                                       <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5">
-                                          <span className="text-[15px] font-semibold leading-tight">
+                                          <span className="text-base font-semibold leading-tight">
                                             {item.name}
                                           </span>
                                           {item.isIce && (
                                             <Badge
                                               variant="outline"
-                                              className="border-sky-300 text-[10px] text-sky-600 dark:border-sky-700 dark:text-sky-400"
+                                              className="border-sky-300 text-sm text-sky-600 dark:border-sky-700 dark:text-sky-400"
                                             >
                                               ICE
                                             </Badge>
@@ -1413,13 +1458,13 @@ export default function OrderPage({
                                           {item.isHot && (
                                             <Badge
                                               variant="outline"
-                                              className="border-rose-300 text-[10px] text-rose-600 dark:border-rose-700 dark:text-rose-400"
+                                              className="border-rose-300 text-sm text-rose-600 dark:border-rose-700 dark:text-rose-400"
                                             >
                                               HOT
                                             </Badge>
                                           )}
                                         </div>
-                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                        <p className="mt-0.5 text-sm text-muted-foreground">
                                           탭하여 옵션 선택
                                         </p>
                                       </div>
@@ -1478,7 +1523,7 @@ export default function OrderPage({
                                 <p className="text-sm font-medium">
                                   {shop.name} 메뉴판 사진
                                 </p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-sm text-muted-foreground">
                                   {shop.menuImageCount ?? 0}장 · 펼쳐서 보기 ·
                                   탭하면 확대
                                 </p>
@@ -1548,7 +1593,7 @@ export default function OrderPage({
                                         unoptimized
                                         className="size-full object-cover transition-transform group-hover:scale-[1.02]"
                                       />
-                                      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2 text-[10px] font-medium text-white">
+                                      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2 text-sm font-medium text-white">
                                         {imgIdx + 1}번 · 탭하여 확대
                                       </span>
                                     </button>
@@ -1573,17 +1618,17 @@ export default function OrderPage({
               <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
                 <PlusIcon className="size-4" />
                 직접 입력
-                <span className="text-xs font-normal text-muted-foreground">
+                <span className="text-sm font-normal text-muted-foreground">
                   (메뉴판에 없을 때 음료명·수량·가격)
                 </span>
               </h3>
-              <p className="mb-3 text-xs text-muted-foreground">
+              <p className="mb-3 text-sm text-muted-foreground">
                 위에서 고른 매장(
                 {activeShop?.name ?? "—"}
                 )으로 취합됩니다. 다른 매장이면 탭을 먼저 바꿔 주세요.
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="grid gap-1 text-xs">
+                <label className="grid gap-1 text-sm">
                   <span className="text-muted-foreground">음료명</span>
                   <Input
                     placeholder="예: 아이스 아메리카노"
@@ -1592,7 +1637,7 @@ export default function OrderPage({
                     className="h-9 text-sm"
                   />
                 </label>
-                <label className="grid gap-1 text-xs">
+                <label className="grid gap-1 text-sm">
                   <span className="text-muted-foreground">단가(원)</span>
                   <Input
                     inputMode="numeric"
@@ -1602,7 +1647,7 @@ export default function OrderPage({
                     className="h-9 text-sm"
                   />
                 </label>
-                <label className="grid gap-1 text-xs">
+                <label className="grid gap-1 text-sm">
                   <span className="text-muted-foreground">수량</span>
                   <Input
                     inputMode="numeric"
@@ -1612,7 +1657,7 @@ export default function OrderPage({
                     className="h-9 text-sm"
                   />
                 </label>
-                <label className="grid gap-1 text-xs sm:col-span-2">
+                <label className="grid gap-1 text-sm sm:col-span-2">
                   <span className="text-muted-foreground">옵션·메모 (선택)</span>
                   <Input
                     placeholder="예: 샷 추가, 덜 달게"
@@ -1634,7 +1679,7 @@ export default function OrderPage({
 
               {customLines.length > 0 && (
                 <div className="mt-4 space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground">
+                  <p className="text-sm font-medium text-muted-foreground">
                     직접 입력 품목 ({customLineQtySum}잔)
                   </p>
                   {customLines.map((line) => (
@@ -1647,17 +1692,17 @@ export default function OrderPage({
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-sm font-medium">{line.name}</p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-sm text-muted-foreground">
                               {activeShop?.name ?? "매장 미지정"} · 단가 수정 가능
                             </p>
                           </div>
                           <Button
                             variant="ghost"
-                            size="icon-xs"
+                            size="icon"
                             type="button"
                             onClick={() => removeCustomLine(line.id)}
                           >
-                            <XIcon className="size-3.5" />
+                            <XIcon className="size-4" />
                           </Button>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -1665,10 +1710,10 @@ export default function OrderPage({
                             <Button
                               type="button"
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon"
                               onClick={() => updateCustomLineQty(line.id, -1)}
                             >
-                              <MinusIcon className="size-3" />
+                              <MinusIcon className="size-4" />
                             </Button>
                             <span className="w-6 text-center text-sm font-medium">
                               {line.quantity}
@@ -1676,17 +1721,17 @@ export default function OrderPage({
                             <Button
                               type="button"
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon"
                               onClick={() => updateCustomLineQty(line.id, 1)}
                             >
-                              <PlusIcon className="size-3" />
+                              <PlusIcon className="size-4" />
                             </Button>
                           </div>
-                          <label className="flex items-center gap-1.5 text-xs">
+                          <label className="flex items-center gap-1.5 text-sm">
                             <span className="text-muted-foreground">단가</span>
                             <Input
                               inputMode="numeric"
-                              className="h-8 w-24 text-right text-xs"
+                              className="h-10 w-28 text-right text-base"
                               value={String(line.unitPrice)}
                               onChange={(e) =>
                                 updateCustomLineUnitPrice(line.id, e.target.value)
@@ -1699,7 +1744,7 @@ export default function OrderPage({
                           </span>
                         </div>
                         {line.options ? (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-sm text-muted-foreground">
                             옵션: {line.options}
                           </p>
                         ) : null}
@@ -1730,22 +1775,22 @@ export default function OrderPage({
                               <p className="text-sm font-medium">
                                 {c.menuItem.name}
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-sm text-muted-foreground">
                                 {c.shopName} ·{" "}
                                 {formatPrice(getCartUnitPrice(c))}
                               </p>
                             </div>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon"
                               onClick={() => removeFromCart(c.cartId)}
                             >
-                              <XIcon className="size-3.5" />
+                              <XIcon className="size-4" />
                             </Button>
                           </div>
 
                           <div className="grid gap-1.5">
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-sm text-muted-foreground">
                               온도
                             </span>
                             <div className="grid grid-cols-2 gap-1 rounded-md bg-muted/60 p-1">
@@ -1757,7 +1802,7 @@ export default function OrderPage({
                                     updateCartTemperature(c.cartId, temperature)
                                   }
                                   className={cn(
-                                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                                    "rounded-md px-3 py-1.5 text-sm font-semibold transition-colors",
                                     c.temperature === temperature
                                       ? "bg-background text-foreground shadow-sm"
                                       : "text-muted-foreground hover:text-foreground",
@@ -1774,20 +1819,20 @@ export default function OrderPage({
                             <div className="flex items-center gap-1 rounded-md border">
                               <Button
                                 variant="ghost"
-                                size="icon-xs"
+                                size="icon"
                                 onClick={() => updateCartQty(c.cartId, -1)}
                               >
-                                <MinusIcon className="size-3" />
+                                <MinusIcon className="size-4" />
                               </Button>
                               <span className="w-6 text-center text-sm font-medium">
                                 {c.quantity}
                               </span>
                               <Button
                                 variant="ghost"
-                                size="icon-xs"
+                                size="icon"
                                 onClick={() => updateCartQty(c.cartId, 1)}
                               >
-                                <PlusIcon className="size-3" />
+                                <PlusIcon className="size-4" />
                               </Button>
                             </div>
                             <Input
@@ -1796,7 +1841,7 @@ export default function OrderPage({
                               onChange={(e) =>
                                 updateCartOptions(c.cartId, e.target.value)
                               }
-                              className="h-7 flex-1 text-xs"
+                              className="h-10 flex-1 text-sm"
                             />
                             <span className="shrink-0 text-sm font-semibold">
                               {formatPrice(getCartUnitPrice(c) * c.quantity)}
@@ -1805,7 +1850,7 @@ export default function OrderPage({
 
                           {c.gongcha && (
                             <div className="grid gap-2 rounded-md border bg-muted/25 p-2 sm:grid-cols-2">
-                              <label className="grid gap-1 text-xs">
+                              <label className="grid gap-1 text-sm">
                                 <span className="text-muted-foreground">당도</span>
                                 <select
                                   value={c.gongcha.sweetness}
@@ -1826,7 +1871,7 @@ export default function OrderPage({
                                 </select>
                               </label>
                               {c.temperature === "아이스" && (
-                                <label className="grid gap-1 text-xs">
+                                <label className="grid gap-1 text-sm">
                                   <span className="text-muted-foreground">얼음</span>
                                   <select
                                     value={c.gongcha.ice}
@@ -1845,7 +1890,7 @@ export default function OrderPage({
                                   </select>
                                 </label>
                               )}
-                              <label className="grid gap-1 text-xs">
+                              <label className="grid gap-1 text-sm">
                                 <span className="text-muted-foreground">토핑</span>
                                 <select
                                   value={c.gongcha.topping1}
@@ -1865,7 +1910,7 @@ export default function OrderPage({
                                   ))}
                                 </select>
                               </label>
-                              <label className="grid gap-1 text-xs">
+                              <label className="grid gap-1 text-sm">
                                 <span className="text-muted-foreground">추가토핑</span>
                                 <select
                                   value={c.gongcha.topping2}
@@ -1885,7 +1930,7 @@ export default function OrderPage({
                                   ))}
                                 </select>
                               </label>
-                              <p className="text-right text-xs font-medium sm:col-span-2">
+                              <p className="text-right text-sm font-medium sm:col-span-2">
                                 옵션 추가금: {formatPrice(getCartExtraPrice(c))}
                               </p>
                             </div>
@@ -1914,7 +1959,7 @@ export default function OrderPage({
               </div>
               <div>
                 <h2 className="text-2xl font-bold">주문이 완료되었습니다</h2>
-                <p className="mt-2 text-base font-light text-muted-foreground">
+                <p className="mt-2 text-base font-normal text-muted-foreground">
                   {selectedStaff.name}님의 주문이 정상 접수되었습니다.
                 </p>
               </div>
@@ -1955,7 +2000,7 @@ export default function OrderPage({
                                   ×{order.quantity}
                                 </span>
                               </p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-sm text-muted-foreground">
                                 {order.menuItem?.shop?.name ??
                                   order.customShopName ??
                                   "직접 입력"}
@@ -1968,7 +2013,7 @@ export default function OrderPage({
                               </span>
                               <Button
                                 variant="ghost"
-                                size="icon-xs"
+                                size="icon"
                                 onClick={() => handleDeleteOrder(order.id)}
                               >
                                 <Trash2Icon className="size-3.5 text-destructive" />
@@ -2053,29 +2098,104 @@ export default function OrderPage({
 
       {/* ── Sticky bottom bar (cart summary) ───────────────────────────── */}
       {step === 2 && (cart.length > 0 || customLines.length > 0) && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {cartCount + customLineQtySum}잔 · {cart.length + customLines.length}줄
-              </p>
-              <p className="text-base font-bold">{formatPrice(checkoutTotal)}</p>
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+          <div className="mx-auto max-w-5xl">
+            {cartPanelOpen && (
+              <div className="max-h-[50vh] space-y-2 overflow-y-auto border-b px-4 py-3">
+                {cart.map((c) => (
+                  <div key={c.cartId} className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-base font-semibold">{c.menuItem.name}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {c.temperature}
+                        {" · "}
+                        {formatPrice(getCartUnitPrice(c) * c.quantity)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 rounded-lg border">
+                      <Button variant="ghost" size="icon" onClick={() => updateCartQty(c.cartId, -1)}>
+                        <MinusIcon className="size-4" />
+                      </Button>
+                      <span className="w-7 text-center text-base font-bold">{c.quantity}</span>
+                      <Button variant="ghost" size="icon" onClick={() => updateCartQty(c.cartId, 1)}>
+                        <PlusIcon className="size-4" />
+                      </Button>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeFromCart(c.cartId)}>
+                      <Trash2Icon className="size-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                {customLines.map((line) => (
+                  <div key={line.id} className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-base font-semibold">{line.name}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        직접 입력 · {formatPrice(line.unitPrice * line.quantity)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 rounded-lg border">
+                      <Button variant="ghost" size="icon" onClick={() => updateCustomLineQty(line.id, -1)}>
+                        <MinusIcon className="size-4" />
+                      </Button>
+                      <span className="w-7 text-center text-base font-bold">{line.quantity}</span>
+                      <Button variant="ghost" size="icon" onClick={() => updateCustomLineQty(line.id, 1)}>
+                        <PlusIcon className="size-4" />
+                      </Button>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeCustomLine(line.id)}>
+                      <Trash2Icon className="size-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCartPanelOpen(false);
+                    handleScrollToCart();
+                  }}
+                  className="w-full rounded-lg border border-dashed py-2 text-sm text-muted-foreground"
+                >
+                  온도·옵션·당도 자세히 수정하기
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setCartPanelOpen((o) => !o)}
+                className="flex min-w-0 items-center gap-2 text-left whitespace-nowrap"
+                aria-expanded={cartPanelOpen}
+              >
+                <ChevronDownIcon
+                  className={cn(
+                    "size-5 shrink-0 text-muted-foreground transition-transform",
+                    !cartPanelOpen && "rotate-180",
+                  )}
+                />
+                <span>
+                  <span className="block text-sm text-muted-foreground">
+                    {cartCount + customLineQtySum}잔 · 담은 목록 {cartPanelOpen ? "접기" : "보기"}
+                  </span>
+                  <span className="block text-xl font-bold">{formatPrice(checkoutTotal)}</span>
+                </span>
+              </button>
+              <Button
+                onClick={handleSubmitOrder}
+                disabled={submitting}
+                size="lg"
+                className="h-14 min-w-[140px] text-lg font-bold"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2Icon className="mr-1.5 size-5 animate-spin" />
+                    처리 중...
+                  </>
+                ) : (
+                  "주문 완료"
+                )}
+              </Button>
             </div>
-            <Button
-              onClick={handleSubmitOrder}
-              disabled={submitting}
-              size="lg"
-              className="min-w-[120px]"
-            >
-              {submitting ? (
-                <>
-                  <Loader2Icon className="mr-1.5 size-4 animate-spin" />
-                  처리 중...
-                </>
-              ) : (
-                "주문 완료"
-              )}
-            </Button>
           </div>
         </div>
       )}
