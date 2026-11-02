@@ -110,7 +110,7 @@ export function DrinkOptionDrawer({
           )}
         >
           <DrawerHeader className="border-b border-amber-100/80 pb-4 text-left dark:border-amber-900/40">
-            <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
               옵션 선택
             </p>
             <DrawerTitle className="font-heading text-xl font-extrabold tracking-tight">
@@ -123,7 +123,7 @@ export function DrinkOptionDrawer({
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             <div className="grid gap-1.5">
-              <span className="text-xs font-semibold text-muted-foreground">
+              <span className="text-sm font-semibold text-muted-foreground">
                 온도
               </span>
               <div
@@ -176,7 +176,7 @@ export function DrinkOptionDrawer({
             </div>
 
             <label className="grid gap-1.5">
-              <span className="text-xs font-semibold text-muted-foreground">
+              <span className="text-sm font-semibold text-muted-foreground">
                 옵션·메모 (선택)
               </span>
               <Input
@@ -189,10 +189,10 @@ export function DrinkOptionDrawer({
 
             {useGongcha && gongcha && (
               <div className="grid gap-3 rounded-xl border border-amber-200/70 bg-amber-50/40 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
                   공차 옵션
                 </p>
-                <label className="grid gap-1 text-xs">
+                <label className="grid gap-1 text-sm">
                   <span className="text-muted-foreground">당도</span>
                   <select
                     value={gongcha.sweetness}
@@ -207,7 +207,7 @@ export function DrinkOptionDrawer({
                   </select>
                 </label>
                 {temperature === "아이스" && (
-                  <label className="grid gap-1 text-xs">
+                  <label className="grid gap-1 text-sm">
                     <span className="text-muted-foreground">얼음</span>
                     <select
                       value={gongcha.ice}
@@ -220,7 +220,7 @@ export function DrinkOptionDrawer({
                     </select>
                   </label>
                 )}
-                <label className="grid gap-1 text-xs">
+                <label className="grid gap-1 text-sm">
                   <span className="text-muted-foreground">토핑</span>
                   <select
                     value={gongcha.topping1}
@@ -236,7 +236,7 @@ export function DrinkOptionDrawer({
                     ))}
                   </select>
                 </label>
-                <label className="grid gap-1 text-xs">
+                <label className="grid gap-1 text-sm">
                   <span className="text-muted-foreground">추가토핑</span>
                   <select
                     value={gongcha.topping2}
@@ -253,7 +253,7 @@ export function DrinkOptionDrawer({
                   </select>
                 </label>
                 {extraPrice > 0 && (
-                  <p className="text-right text-xs font-medium text-muted-foreground">
+                  <p className="text-right text-sm font-medium text-muted-foreground">
                     옵션 추가금 +{formatPrice(extraPrice)}
                   </p>
                 )}

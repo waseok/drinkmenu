@@ -3,31 +3,14 @@ import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-/** 나눔스퀘어라운드 — 본문 가독성 (npm typeface-nanum-square-round) */
-const nanumSquareRound = localFont({
+/** 에스코어 드림 — 큰 글씨/가독성 (woff2, 한글·영문·기호만 서브셋) */
+const sCoreDream = localFont({
   src: [
-    {
-      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundL.woff2",
-      weight: "300",
-      style: "normal",
-    },
-    {
-      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundR.woff2",
-      weight: "400",
-      style: "normal",
-    },
-    {
-      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundB.woff2",
-      weight: "700",
-      style: "normal",
-    },
-    {
-      path: "../../node_modules/typeface-nanum-square-round/NanumSquareRoundEB.woff2",
-      weight: "800",
-      style: "normal",
-    },
+    { path: "./fonts/SCoreDream-4Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/SCoreDream-6Bold.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/SCoreDream-7ExtraBold.woff2", weight: "800", style: "normal" },
   ],
-  variable: "--font-nanum-round",
+  variable: "--font-score-dream",
   display: "swap",
 });
 
@@ -44,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${nanumSquareRound.variable} h-full antialiased`}
+      className={`${sCoreDream.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
         {children}
